@@ -57,6 +57,7 @@ struct TodayView: View {
             try context.save()
             quickAddTitle = ""
             quickAddFocused = true
+            pushToEventKit()
         } catch {
             assertionFailure("Quick add failed: \(error)")
         }
@@ -67,6 +68,11 @@ struct TodayView: View {
             context.tombstone(reminders[index])
         }
         try? context.save()
+        pushToEventKit()
+    }
+
+    private func pushToEventKit() {
+        Task { try? await EventKitPushService.pushPending(context: context) }
     }
 }
 
@@ -79,6 +85,7 @@ struct ReminderRow: View {
             Button {
                 context.setCompleted(reminder, !reminder.isCompleted)
                 try? context.save()
+                Task { try? await EventKitPushService.pushPending(context: context) }
             } label: {
                 Image(systemName: reminder.isCompleted ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(reminder.isCompleted ? Color.accentColor : .secondary)

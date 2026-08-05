@@ -30,6 +30,7 @@ struct MenuBarView: View {
                         Button {
                             context.setCompleted(reminder, true)
                             try? context.save()
+                            Task { try? await EventKitPushService.pushPending(context: context) }
                         } label: {
                             Image(systemName: "circle")
                         }
@@ -75,6 +76,7 @@ struct MenuBarView: View {
             context.insert(item)
             try context.save()
             quickAddTitle = ""
+            Task { try? await EventKitPushService.pushPending(context: context) }
         } catch {
             assertionFailure("Quick add failed: \(error)")
         }

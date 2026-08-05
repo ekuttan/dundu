@@ -1,6 +1,13 @@
 import Foundation
 #if canImport(EventKit)
+import CoreLocation
 import EventKit
+
+public enum DunduEventKitError: Error, Sendable {
+    case missingPayload
+    case reminderNotFound(String)
+    case accessNotGranted
+}
 
 /// EventKit bridge — owns Apple Reminders, and only Reminders. Google-backed
 /// EK calendars are enumerated at setup and on every sync, and land on the
@@ -70,6 +77,140 @@ public actor EventKitBridge: SyncBridge {
         }
     }
 
+    /// EK calendar identifier of the system default reminders list.
+    public func defaultListExternalID() -> String? {
+        store.defaultCalendarForNewReminders()?.calendarIdentifier
+    }
+
+    // MARK: - Writing (M2)
+
+    /// Applies planned changes in one batch commit. Updates fetch-mutate-save
+    /// the existing EKReminder — never construct a fresh one to replace it,
+    /// because that drops fields EventKit doesn't expose to us (tags,
+    /// subtasks, flags, attachments).
+    public func apply(_ planned: [PlannedReminderChange]) async -> [PushResult] {
+        var results: [PushResult] = []
+        var dirty = false
+
+        for change in planned {
+            do {
+                switch change.action {
+                case .create:
+                    guard let payload = change.payload else {
+                        throw DunduEventKitError.missingPayload
+                    }
+                    let reminder = EKReminder(eventStore: store)
+                    reminder.calendar = payload.listExternalID
+                        .flatMap { store.calendar(withIdentifier: $0) }
+                        ?? store.defaultCalendarForNewReminders()
+                    Self.apply(payload, to: reminder)
+                    try store.save(reminder, commit: false)
+                    dirty = true
+                    results.append(PushResult(
+                        localID: change.localID,
+                        externalID: reminder.calendarItemExternalIdentifier ?? reminder.calendarItemIdentifier
+                    ))
+
+                case .update(let externalID):
+                    guard let payload = change.payload else {
+                        throw DunduEventKitError.missingPayload
+                    }
+                    guard let reminder = fetchByExternalID(externalID) else {
+                        throw DunduEventKitError.reminderNotFound(externalID)
+                    }
+                    Self.apply(payload, to: reminder)
+                    try store.save(reminder, commit: false)
+                    dirty = true
+                    results.append(PushResult(localID: change.localID, externalID: externalID))
+
+                case .delete(let externalID):
+                    if let reminder = fetchByExternalID(externalID) {
+                        try store.remove(reminder, commit: false)
+                        dirty = true
+                    }
+                    // Already gone remotely is success, not an error.
+                    results.append(PushResult(localID: change.localID, externalID: externalID))
+                }
+            } catch {
+                results.append(PushResult(
+                    localID: change.localID,
+                    error: String(describing: error)
+                ))
+            }
+        }
+
+        if dirty {
+            do {
+                try store.commit()
+            } catch {
+                // The batch failed as a whole; report it on every change that
+                // thought it succeeded.
+                results = results.map {
+                    $0.error == nil
+                        ? PushResult(localID: $0.localID, externalID: $0.externalID, error: String(describing: error))
+                        : $0
+                }
+            }
+        }
+
+        return results
+    }
+
+    private func fetchByExternalID(_ externalID: String) -> EKReminder? {
+        let matches = store.calendarItems(withExternalIdentifier: externalID)
+            .compactMap { $0 as? EKReminder }
+        // External IDs are not guaranteed unique; keep the most recently
+        // modified and let the sync pass reconcile the rest.
+        return matches.max {
+            ($0.lastModifiedDate ?? .distantPast) < ($1.lastModifiedDate ?? .distantPast)
+        }
+    }
+
+    private static func apply(_ payload: ReminderWritePayload, to reminder: EKReminder) {
+        reminder.title = payload.title
+        reminder.notes = payload.notes
+        reminder.url = payload.url
+        reminder.priority = payload.priority
+
+        if let due = payload.dueDate {
+            var components: Set<Calendar.Component> = [.year, .month, .day]
+            if payload.hasTime {
+                components.formUnion([.hour, .minute])
+            }
+            reminder.dueDateComponents = Calendar.current.dateComponents(components, from: due)
+        } else {
+            reminder.dueDateComponents = nil
+        }
+
+        if payload.isCompleted {
+            // Setting isCompleted stamps completionDate; prefer our own.
+            reminder.isCompleted = true
+            if let completedAt = payload.completedAt {
+                reminder.completionDate = completedAt
+            }
+        } else {
+            reminder.isCompleted = false
+        }
+
+        // M2 owns the alarm set for items Dundu pushes. The field-level diff
+        // that preserves foreign alarms arrives with M3's three-way merge.
+        for alarm in reminder.alarms ?? [] {
+            reminder.removeAlarm(alarm)
+        }
+        for offset in payload.alarmOffsets {
+            reminder.addAlarm(EKAlarm(relativeOffset: offset))
+        }
+        if let location = payload.locationAlarm {
+            let structured = EKStructuredLocation(title: location.title)
+            structured.geoLocation = CLLocation(latitude: location.latitude, longitude: location.longitude)
+            structured.radius = location.radius
+            let alarm = EKAlarm()
+            alarm.structuredLocation = structured
+            alarm.proximity = location.proximity == .leave ? .leave : .enter
+            reminder.addAlarm(alarm)
+        }
+    }
+
     // MARK: - SyncBridge
 
     public func pull() async throws -> [RemoteChange] {
@@ -78,10 +219,24 @@ public actor EventKitBridge: SyncBridge {
     }
 
     public func push(_ changes: [LocalChange]) async throws -> [PushResult] {
-        // M2: fetch-mutate-save. Never construct a fresh EKReminder to replace
-        // an existing one — that drops fields EventKit doesn't expose to us
-        // (tags, subtasks, flags, attachments).
-        changes.map { PushResult(localID: $0.localID, error: "EventKit bridge not implemented until M2") }
+        // The typed entry point is `apply(_:)`; the protocol path decodes
+        // payloads the coordinator queued.
+        var planned: [PlannedReminderChange] = []
+        for change in changes {
+            let payload = change.payload.flatMap {
+                try? JSONDecoder().decode(ReminderWritePayload.self, from: $0)
+            }
+            let action: PlannedReminderChange.Action? = switch change.kind {
+            case .create: .create
+            case .update: change.externalID.map { .update(externalID: $0) }
+            case .delete: change.externalID.map { .delete(externalID: $0) }
+            }
+            guard let action else { continue }
+            planned.append(PlannedReminderChange(
+                localID: change.localID, action: action, payload: payload, localModifiedAt: Date()
+            ))
+        }
+        return await apply(planned)
     }
 
     public func observeChanges() -> AsyncStream<Void> {
