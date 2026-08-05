@@ -46,11 +46,21 @@ struct InboxPlaceholderView: View {
 struct SettingsPlaceholderView: View {
     var body: some View {
         NavigationStack {
-            ContentUnavailableView(
-                "Settings arrive with M6",
-                systemImage: "gearshape",
-                description: Text("Accounts, synced lists, profile context, notifications.")
-            )
+            List {
+                Section("Accounts") {
+                    NavigationLink {
+                        AppleRemindersView()
+                    } label: {
+                        Label("Apple Reminders", systemImage: "checklist")
+                    }
+                    Label("Google Calendar — arrives with M9", systemImage: "calendar")
+                        .foregroundStyle(.tertiary)
+                }
+                Section("Intelligence") {
+                    Label("Profile context — arrives with M12", systemImage: "brain")
+                        .foregroundStyle(.tertiary)
+                }
+            }
             .navigationTitle("Settings")
         }
     }
