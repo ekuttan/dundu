@@ -1,0 +1,10 @@
+.DS_Store
+xcuserdata/
+*.xcuserstate
+DerivedData/
+.build/
+.swiftpm/
+build/
+
+# Personal context — not for the public repo (see README "Secrets and privacy")
+dundu-prd.md
