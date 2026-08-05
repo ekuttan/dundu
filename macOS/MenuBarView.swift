@@ -30,7 +30,7 @@ struct MenuBarView: View {
                         Button {
                             context.setCompleted(reminder, true)
                             try? context.save()
-                            Task { try? await EventKitPushService.pushPending(context: context) }
+                            Task { await ReminderSyncService.syncNow(context: context) }
                         } label: {
                             Image(systemName: "circle")
                         }
@@ -64,6 +64,13 @@ struct MenuBarView: View {
         }
         .padding(Tokens.Spacing.lg)
         .frame(width: 320)
+        .task {
+            await ReminderSyncService.syncNow(context: context)
+            for await _ in await ReminderSyncService.bridge.observeChanges() {
+                try? await Task.sleep(for: ReminderSyncService.changeDebounce)
+                await ReminderSyncService.syncNow(context: context)
+            }
+        }
     }
 
     private func addReminder() {
@@ -76,7 +83,7 @@ struct MenuBarView: View {
             context.insert(item)
             try context.save()
             quickAddTitle = ""
-            Task { try? await EventKitPushService.pushPending(context: context) }
+            Task { await ReminderSyncService.syncNow(context: context) }
         } catch {
             assertionFailure("Quick add failed: \(error)")
         }

@@ -239,10 +239,29 @@ public actor EventKitBridge: SyncBridge {
         return await apply(planned)
     }
 
+    /// Fires on `EKEventStoreChanged`. No payload — it means "refetch".
+    /// Consumers debounce by 1 second; echo suppression is structural, since
+    /// our own writes read back as remote-equals-base and plan to nothing.
     public func observeChanges() -> AsyncStream<Void> {
-        // M3: EKEventStoreChanged, debounced 1s, with echo suppression via a
-        // 3-second set of recently written external IDs.
-        AsyncStream { $0.finish() }
+        let store = self.store
+        return AsyncStream { continuation in
+            let token = ObserverToken(NotificationCenter.default.addObserver(
+                forName: .EKEventStoreChanged, object: store, queue: nil
+            ) { _ in
+                continuation.yield()
+            })
+            continuation.onTermination = { _ in
+                token.cancel()
+            }
+        }
+    }
+
+    /// Sendable box for a NotificationCenter observer token so the stream's
+    /// termination handler can remove it.
+    private final class ObserverToken: @unchecked Sendable {
+        private let observer: any NSObjectProtocol
+        init(_ observer: any NSObjectProtocol) { self.observer = observer }
+        func cancel() { NotificationCenter.default.removeObserver(observer) }
     }
 
     // MARK: - Mapping

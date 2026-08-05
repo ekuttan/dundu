@@ -1,8 +1,12 @@
 import SwiftUI
+import DunduKit
 
 /// M0 shell: the four surfaces exist as tabs, Today is a working list backed
 /// by SwiftData. The real screens land with M6 (UI) and M15 (Inbox).
 struct RootView: View {
+    @Environment(\.modelContext) private var context
+    @Environment(\.scenePhase) private var scenePhase
+
     var body: some View {
         TabView {
             TodayView()
@@ -13,6 +17,20 @@ struct RootView: View {
                 .tabItem { Label("Inbox", systemImage: "tray") }
             SettingsPlaceholderView()
                 .tabItem { Label("Settings", systemImage: "gearshape") }
+        }
+        .task {
+            // Initial pass, then a debounced pass per EKEventStoreChanged.
+            // Echo suppression is structural: our own writes plan to nothing.
+            await ReminderSyncService.syncNow(context: context)
+            for await _ in await ReminderSyncService.bridge.observeChanges() {
+                try? await Task.sleep(for: ReminderSyncService.changeDebounce)
+                await ReminderSyncService.syncNow(context: context)
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                Task { await ReminderSyncService.syncNow(context: context) }
+            }
         }
     }
 }

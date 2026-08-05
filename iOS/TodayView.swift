@@ -72,7 +72,7 @@ struct TodayView: View {
     }
 
     private func pushToEventKit() {
-        Task { try? await EventKitPushService.pushPending(context: context) }
+        Task { await ReminderSyncService.syncNow(context: context) }
     }
 }
 
@@ -85,7 +85,7 @@ struct ReminderRow: View {
             Button {
                 context.setCompleted(reminder, !reminder.isCompleted)
                 try? context.save()
-                Task { try? await EventKitPushService.pushPending(context: context) }
+                Task { await ReminderSyncService.syncNow(context: context) }
             } label: {
                 Image(systemName: reminder.isCompleted ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(reminder.isCompleted ? Color.accentColor : .secondary)
