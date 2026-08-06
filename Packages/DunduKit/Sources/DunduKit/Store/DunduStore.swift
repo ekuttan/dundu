@@ -17,11 +17,22 @@ public enum DunduStore {
 
     public static var schema: Schema { Schema(allModels) }
 
-    /// The on-disk container. CloudKit arrives with M7 — the models are
-    /// already shaped for it (defaults everywhere, no unique attributes).
+    /// The CloudKit private-database container for device-to-device sync.
+    public static let cloudKitContainerID = "iCloud.app.scoop.dundu"
+
+    /// The on-disk container, CloudKit-backed when the app is entitled and
+    /// signed in. Falls back to a local-only store on any CloudKit setup
+    /// failure — Dundu must work without iCloud, not crash over it.
     public static func container() throws -> ModelContainer {
-        let config = ModelConfiguration("Dundu", schema: schema)
-        return try ModelContainer(for: schema, configurations: [config])
+        do {
+            let cloud = ModelConfiguration(
+                "Dundu", schema: schema, cloudKitDatabase: .private(cloudKitContainerID)
+            )
+            return try ModelContainer(for: schema, configurations: [cloud])
+        } catch {
+            let local = ModelConfiguration("Dundu", schema: schema, cloudKitDatabase: .none)
+            return try ModelContainer(for: schema, configurations: [local])
+        }
     }
 
     /// In-memory container for tests and previews.
