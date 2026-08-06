@@ -20,15 +20,25 @@ final class NotchModel {
     var uiState: NotchUIState = .hidden
     var items: [NotchItem] = []
     var reduceMotion = false
+    /// Items completed in the notch, inside their 3-second undo window.
+    var pendingUndo: Set<UUID> = []
+    /// When the scheduler should next wake the panel.
+    private(set) var nextFire: ScheduledFire?
 
     var peekTitle: String {
-        items.first?.title ?? ""
+        items.first(where: { !pendingUndo.contains($0.id) })?.title ?? ""
     }
 
-    var hasContent: Bool { !items.isEmpty }
+    /// Items not mid-undo; what the peek counts.
+    var activeCount: Int {
+        items.filter { !pendingUndo.contains($0.id) }.count
+    }
+
+    var hasContent: Bool { activeCount > 0 }
 
     /// Reloads due reminders from the store, most overdue first (spec: the
-    /// peek shows count and the most urgent title).
+    /// peek shows count and the most urgent title), and recomputes the next
+    /// fire date for the scheduler.
     func refresh(context: ModelContext, now: Date = Date()) {
         if ProcessInfo.processInfo.environment["DUNDU_NOTCH_DEMO"] == "1" {
             items = [
@@ -39,14 +49,16 @@ final class NotchModel {
             return
         }
 
-        let due = (try? context.fetch(FetchDescriptor<ReminderItem>(
+        let open = (try? context.fetch(FetchDescriptor<ReminderItem>(
             predicate: #Predicate { $0.tombstonedAt == nil && !$0.isCompleted }
         ))) ?? []
 
-        items = due
-            .filter { ($0.dueDate.map { $0 <= now }) ?? false }
-            .sorted { ($0.dueDate ?? .distantPast) < ($1.dueDate ?? .distantPast) }
+        items = ScheduleCalculator.dueReminders(open, now: now)
             .prefix(5)
-            .map { NotchItem(id: $0.id, title: $0.title, dueDate: $0.dueDate, isOverdue: true) }
+            .map { NotchItem(id: $0.scheduleID, title: $0.scheduleTitle, dueDate: $0.scheduleDate, isOverdue: true) }
+
+        // Events join in M11; until then the next fire is the next due
+        // reminder with a time.
+        nextFire = ScheduleCalculator.nextFire(reminders: open, events: [], now: now)
     }
 }

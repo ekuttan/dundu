@@ -8,6 +8,7 @@ struct NotchView: View {
     let model: NotchModel
     let geometry: NotchGeometry
     let onComplete: (NotchItem) -> Void
+    let onUndo: (NotchItem) -> Void
     let onSnooze: (NotchItem, SnoozeOption) -> Void
 
     private var animation: Animation {
@@ -40,7 +41,7 @@ struct NotchView: View {
             Circle()
                 .fill(Tokens.Colors.overdue)
                 .frame(width: 6, height: 6)
-            Text("\(model.items.count)")
+            Text("\(model.activeCount)")
                 .font(.caption.bold().monospacedDigit())
             Text(model.peekTitle)
                 .font(.caption)
@@ -78,8 +79,14 @@ struct NotchView: View {
             .padding(.horizontal, Tokens.Spacing.lg)
 
             ForEach(model.items.prefix(5)) { item in
-                NotchRow(item: item, onComplete: onComplete, onSnooze: onSnooze)
-                    .padding(.horizontal, Tokens.Spacing.md)
+                NotchRow(
+                    item: item,
+                    isPendingUndo: model.pendingUndo.contains(item.id),
+                    onComplete: onComplete,
+                    onUndo: onUndo,
+                    onSnooze: onSnooze
+                )
+                .padding(.horizontal, Tokens.Spacing.md)
             }
 
             Spacer(minLength: Tokens.Spacing.md)
@@ -125,42 +132,54 @@ enum SnoozeOption: String, CaseIterable, Identifiable {
 
 private struct NotchRow: View {
     let item: NotchItem
+    let isPendingUndo: Bool
     let onComplete: (NotchItem) -> Void
+    let onUndo: (NotchItem) -> Void
     let onSnooze: (NotchItem, SnoozeOption) -> Void
 
     var body: some View {
         HStack(spacing: Tokens.Spacing.sm) {
             Button {
-                onComplete(item)
+                isPendingUndo ? onUndo(item) : onComplete(item)
             } label: {
-                Image(systemName: "circle")
-                    .foregroundStyle(.secondary)
+                Image(systemName: isPendingUndo ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isPendingUndo ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
             }
             .buttonStyle(.plain)
 
             Text(item.title)
                 .font(.callout)
+                .strikethrough(isPendingUndo)
+                .foregroundStyle(isPendingUndo ? .secondary : .primary)
                 .lineLimit(1)
 
             Spacer()
 
-            if let due = item.dueDate {
-                Text(Formatters.relativeTime(to: due))
-                    .font(.caption.monospacedDigit())
-                    .foregroundStyle(item.isOverdue ? Tokens.Colors.overdue : .secondary)
-            }
-
-            Menu {
-                ForEach(SnoozeOption.allCases) { option in
-                    Button(option.rawValue) { onSnooze(item, option) }
+            if isPendingUndo {
+                Button("Undo") { onUndo(item) }
+                    .buttonStyle(.plain)
+                    .font(.caption.bold())
+                    .foregroundStyle(.tint)
+            } else {
+                if let due = item.dueDate {
+                    Text(Formatters.relativeTime(to: due))
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(item.isOverdue ? Tokens.Colors.overdue : .secondary)
                 }
-            } label: {
-                Image(systemName: "zzz")
-                    .foregroundStyle(.secondary)
+
+                Menu {
+                    ForEach(SnoozeOption.allCases) { option in
+                        Button(option.rawValue) { onSnooze(item, option) }
+                    }
+                } label: {
+                    Image(systemName: "zzz")
+                        .foregroundStyle(.secondary)
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
             }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
         }
         .padding(.vertical, Tokens.Spacing.xs)
+        .animation(.default, value: isPendingUndo)
     }
 }

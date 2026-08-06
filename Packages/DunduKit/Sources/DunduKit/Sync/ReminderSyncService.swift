@@ -19,6 +19,10 @@ public enum ReminderSyncService {
     /// Debounce for EKEventStoreChanged, per spec.
     public static let changeDebounce: Duration = .seconds(1)
 
+    /// Posted on the main thread after every completed sync pass, so
+    /// schedulers can recompute their next fire date.
+    public static let syncDidFinish = Notification.Name("DunduReminderSyncDidFinish")
+
     // MARK: - Entry point
 
     public static func syncNow(context: ModelContext) async {
@@ -43,6 +47,8 @@ public enum ReminderSyncService {
                 #endif
             }
         } while rerunRequested
+
+        NotificationCenter.default.post(name: syncDidFinish, object: nil)
     }
 
     // MARK: - The pass

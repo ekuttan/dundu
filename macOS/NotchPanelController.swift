@@ -19,7 +19,12 @@ final class NotchPanelController {
 
     private var expandTimer: Timer?
     private var collapseTimer: Timer?
-    private var refreshTimer: Timer?
+    private let scheduler = NotchScheduler()
+    /// Undo windows for completions made in the notch, keyed by item.
+    private var undoTimers: [UUID: Timer] = [:]
+
+    /// Completing from the notch commits after this window, per spec.
+    static let undoWindow: TimeInterval = 3
 
     /// Hover timing per spec: 120ms before expanding so a cursor passing
     /// through to the menu bar doesn't trigger it, 400ms before collapsing so
@@ -44,15 +49,8 @@ final class NotchPanelController {
 
     func start() {
         rebuildPanel()
+        scheduler.onFire = { [weak self] in self?.refresh() }
         refresh()
-
-        // M5 replaces this with the real due-date scheduler; until then a
-        // coarse timer keeps the panel honest.
-        refreshTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { _ in
-            Task { @MainActor in
-                NotchPanel.shared?.refresh()
-            }
-        }
     }
 
     func rebuildPanel() {
@@ -71,6 +69,7 @@ final class NotchPanelController {
             model: model,
             geometry: geometry,
             onComplete: { [weak self] item in self?.complete(item) },
+            onUndo: { [weak self] item in self?.undo(item) },
             onSnooze: { [weak self] item, option in self?.snooze(item, option: option) }
         )
 
@@ -108,6 +107,7 @@ final class NotchPanelController {
     func refresh() {
         let context = ModelContext(container)
         model.refresh(context: context)
+        scheduler.rearm(for: model.nextFire?.date)
 
         // A due item raises the peek; an emptied list retracts everything
         // unless the user is mid-interaction in the expanded panel.
@@ -116,7 +116,7 @@ final class NotchPanelController {
             model.uiState = .peek
         case .peek where !model.hasContent:
             model.uiState = .hidden
-        case .expanded where !model.hasContent:
+        case .expanded where !model.hasContent && undoTimers.isEmpty:
             model.uiState = .hidden
         default:
             break
@@ -156,7 +156,31 @@ final class NotchPanelController {
 
     // MARK: - Actions
 
+    /// Checkbox completes with a 3-second undo window: the row shows as done
+    /// immediately, the store write and sync happen only when the window
+    /// closes without an undo.
     private func complete(_ item: NotchItem) {
+        guard undoTimers[item.id] == nil else { return }
+        model.pendingUndo.insert(item.id)
+
+        undoTimers[item.id] = Timer.scheduledTimer(
+            withTimeInterval: Self.undoWindow, repeats: false
+        ) { _ in
+            Task { @MainActor in
+                NotchPanel.shared?.commitCompletion(item)
+            }
+        }
+    }
+
+    private func undo(_ item: NotchItem) {
+        undoTimers.removeValue(forKey: item.id)?.invalidate()
+        model.pendingUndo.remove(item.id)
+    }
+
+    fileprivate func commitCompletion(_ item: NotchItem) {
+        undoTimers.removeValue(forKey: item.id)?.invalidate()
+        model.pendingUndo.remove(item.id)
+
         let context = ModelContext(container)
         if let target = try? context.fetch(FetchDescriptor<ReminderItem>()).first(where: { $0.id == item.id }) {
             context.setCompleted(target, true)
