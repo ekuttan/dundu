@@ -1,24 +1,42 @@
 import SwiftUI
+import SwiftData
 import DunduKit
 
 /// M0 shell: the four surfaces exist as tabs, Today is a working list backed
 /// by SwiftData. The real screens land with M6 (UI) and M15 (Inbox).
+enum AppTab: Hashable {
+    case today, lists, inbox, settings
+}
+
 struct RootView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage("hasOnboarded") private var hasOnboarded = false
     @State private var showOnboarding = false
+    @State private var selectedTab: AppTab = .today
+    @Query(
+        filter: #Predicate<ReminderItem> {
+            $0.tombstonedAt == nil && $0.reviewStateRaw == "pending"
+        }
+    ) private var pendingReviews: [ReminderItem]
 
     var body: some View {
-        TabView {
-            TodayView()
-                .tabItem { Label("Today", systemImage: "sun.max") }
+        TabView(selection: $selectedTab) {
+            TodayView(inboxCount: pendingReviews.count) {
+                selectedTab = .inbox
+            }
+            .tabItem { Label("Today", systemImage: "sun.max") }
+            .tag(AppTab.today)
             ListsView()
                 .tabItem { Label("Lists", systemImage: "list.bullet") }
-            InboxPlaceholderView()
+                .tag(AppTab.lists)
+            InboxView()
                 .tabItem { Label("Inbox", systemImage: "tray") }
+                .tag(AppTab.inbox)
+                .badge(pendingReviews.count)
             SettingsPlaceholderView()
                 .tabItem { Label("Settings", systemImage: "gearshape") }
+                .tag(AppTab.settings)
         }
         .onAppear {
             showOnboarding = !hasOnboarded
@@ -37,23 +55,20 @@ struct RootView: View {
                 await ReminderSyncService.syncNow(context: context)
             }
         }
+        .task {
+            // Inbox notifications reconcile after every sync pass: trigger 2
+            // fires for urgent garbles, trigger 3 stays scheduled or drops.
+            let syncs = NotificationCenter.default.notifications(
+                named: ReminderSyncService.syncDidFinish
+            )
+            for await _ in syncs {
+                await InboxNotifier.reconcile(context: context)
+            }
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 Task { await ReminderSyncService.syncNow(context: context) }
             }
-        }
-    }
-}
-
-struct InboxPlaceholderView: View {
-    var body: some View {
-        NavigationStack {
-            ContentUnavailableView(
-                "Inbox arrives with M15",
-                systemImage: "tray",
-                description: Text("Routing questions, repair suggestions, and conflicts land here.")
-            )
-            .navigationTitle("Inbox")
         }
     }
 }

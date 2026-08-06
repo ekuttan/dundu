@@ -75,6 +75,17 @@ struct NotchView: View {
                     .font(.caption.bold())
                     .foregroundStyle(.secondary)
                 Spacer()
+                if model.inboxCount > 0 {
+                    // The Inbox surface on the Mac: a dot, not a modal.
+                    HStack(spacing: Tokens.Spacing.xs) {
+                        Circle()
+                            .fill(Tokens.Colors.dueSoon)
+                            .frame(width: 6, height: 6)
+                        Text("\(model.inboxCount)")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
             .padding(.horizontal, Tokens.Spacing.lg)
 

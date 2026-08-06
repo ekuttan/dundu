@@ -24,6 +24,8 @@ final class NotchModel {
     var pendingUndo: Set<UUID> = []
     /// When the scheduler should next wake the panel.
     private(set) var nextFire: ScheduledFire?
+    /// Open Inbox questions; the expanded panel shows a small dot.
+    private(set) var inboxCount = 0
 
     var peekTitle: String {
         items.first(where: { !pendingUndo.contains($0.id) })?.title ?? ""
@@ -60,5 +62,9 @@ final class NotchModel {
         // Events join in M11; until then the next fire is the next due
         // reminder with a time.
         nextFire = ScheduleCalculator.nextFire(reminders: open, events: [], now: now)
+
+        inboxCount = ((try? context.fetch(FetchDescriptor<ReminderItem>(
+            predicate: #Predicate { $0.tombstonedAt == nil && $0.reviewStateRaw == "pending" }
+        ))) ?? []).count
     }
 }

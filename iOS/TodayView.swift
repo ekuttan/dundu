@@ -5,6 +5,10 @@ import DunduKit
 /// Today: overdue and due-today reminders up top, the near future below.
 /// Events interleave here once the Google bridge lands (M11).
 struct TodayView: View {
+    /// Home surface for the Inbox: a banner with the count, never a modal.
+    var inboxCount: Int = 0
+    var onOpenInbox: () -> Void = {}
+
     @Environment(\.modelContext) private var context
     @Query(
         filter: #Predicate<ReminderItem> { $0.tombstonedAt == nil },
@@ -21,6 +25,7 @@ struct TodayView: View {
         NavigationStack {
             List {
                 if searchText.isEmpty {
+                    inboxBanner
                     deniedBanner
                     quickAddRow
                     sections
@@ -121,6 +126,30 @@ struct TodayView: View {
                     ReminderRow(reminder: reminder)
                         .contentShape(Rectangle())
                         .onTapGesture { editingReminder = reminder }
+                }
+            }
+        }
+    }
+
+    // MARK: - Inbox banner
+
+    @ViewBuilder
+    private var inboxBanner: some View {
+        if inboxCount > 0 {
+            Section {
+                Button(action: onOpenInbox) {
+                    HStack {
+                        Label(
+                            inboxCount == 1
+                                ? "1 suggestion in the Inbox"
+                                : "\(inboxCount) suggestions in the Inbox",
+                            systemImage: "tray.full"
+                        )
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
             }
         }
