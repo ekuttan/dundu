@@ -10,9 +10,26 @@ struct NotchView: View {
     let onComplete: (NotchItem) -> Void
     let onUndo: (NotchItem) -> Void
     let onSnooze: (NotchItem, SnoozeOption) -> Void
+    let onQuickAdd: (String) -> Void
+    let onQuickAddFocus: (Bool) -> Void
+    let onOpenSettings: () -> Void
+
+    @State private var quickAddTitle = ""
+    @State private var showQuickAdd = false
+    @FocusState private var quickAddFocused: Bool
 
     private var animation: Animation {
         model.reduceMotion ? Tokens.Anim.reduceMotionFallback : Tokens.Anim.notchSpring
+    }
+
+    /// Drop-in from the notch with a touch of scale — reads as the notch
+    /// growing rather than a sheet sliding.
+    private var appearTransition: AnyTransition {
+        model.reduceMotion
+            ? .opacity
+            : .move(edge: .top)
+                .combined(with: .opacity)
+                .combined(with: .scale(scale: 0.85, anchor: .top))
     }
 
     var body: some View {
@@ -61,7 +78,7 @@ struct NotchView: View {
             )
             .fill(.black)
         )
-        .transition(.move(edge: .top).combined(with: .opacity))
+        .transition(appearTransition)
     }
 
     // MARK: - Expanded
@@ -90,8 +107,48 @@ struct NotchView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                Button {
+                    withAnimation(animation) { showQuickAdd.toggle() }
+                    if showQuickAdd {
+                        quickAddFocused = true
+                    } else {
+                        onQuickAddFocus(false)
+                    }
+                } label: {
+                    Image(systemName: showQuickAdd ? "xmark.circle" : "plus.circle")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Quick add a reminder")
+                Button(action: onOpenSettings) {
+                    Image(systemName: "gearshape")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Open Dundu settings")
             }
             .padding(.horizontal, Tokens.Spacing.lg)
+
+            if showQuickAdd {
+                TextField("Quick add…", text: $quickAddTitle)
+                    .textFieldStyle(.roundedBorder)
+                    .focused($quickAddFocused)
+                    .onSubmit {
+                        onQuickAdd(quickAddTitle)
+                        quickAddTitle = ""
+                        showQuickAdd = false
+                        onQuickAddFocus(false)
+                    }
+                    .onExitCommand {
+                        quickAddTitle = ""
+                        showQuickAdd = false
+                        onQuickAddFocus(false)
+                    }
+                    .onChange(of: quickAddFocused) { _, focused in
+                        onQuickAddFocus(focused)
+                    }
+                    .padding(.horizontal, Tokens.Spacing.lg)
+            }
 
             ForEach(due) { item in
                 NotchRow(
@@ -134,7 +191,7 @@ struct NotchView: View {
                 .fill(.black)
         )
         .environment(\.colorScheme, .dark)
-        .transition(.move(edge: .top).combined(with: .opacity))
+        .transition(appearTransition)
     }
 }
 

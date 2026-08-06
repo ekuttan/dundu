@@ -18,8 +18,9 @@ enum Tokens {
     }
 
     enum Anim {
-        /// Notch spring per spec: ~0.35s response, 0.7 damping.
-        static let notchSpring = Animation.spring(response: 0.35, dampingFraction: 0.7)
+        /// Notch spring: a touch bouncier than the spec's 0.35/0.7 baseline
+        /// so the drop reads as the notch growing, with a visible settle.
+        static let notchSpring = Animation.spring(response: 0.4, dampingFraction: 0.62)
         static let reduceMotionFallback = Animation.easeInOut(duration: 0.15)
     }
 

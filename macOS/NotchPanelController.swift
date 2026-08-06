@@ -13,7 +13,7 @@ final class NotchPanelController {
     private let container: ModelContainer
     let model = NotchModel()
 
-    private var panel: NSPanel?
+    private var panel: NotchNSPanel?
     private var hostingView: PassthroughHostingView<NotchView>?
     private var geometry: NotchGeometry?
 
@@ -25,6 +25,12 @@ final class NotchPanelController {
 
     /// Completing from the notch commits after this window, per spec.
     static let undoWindow: TimeInterval = 3
+
+    /// Due items the user has already seen (expanded the panel over them).
+    /// The peek raises only for items outside this set, so it appears at the
+    /// moment something new becomes due — never "randomly" after an
+    /// unrelated sync while an old overdue backlog exists.
+    private var acknowledgedDueIDs: Set<UUID> = []
 
     /// Hover timing per spec: 120ms before expanding so a cursor passing
     /// through to the menu bar doesn't trigger it, 400ms before collapsing so
@@ -86,7 +92,10 @@ final class NotchPanelController {
             geometry: geometry,
             onComplete: { [weak self] item in self?.complete(item) },
             onUndo: { [weak self] item in self?.undo(item) },
-            onSnooze: { [weak self] item, option in self?.snooze(item, option: option) }
+            onSnooze: { [weak self] item, option in self?.snooze(item, option: option) },
+            onQuickAdd: { [weak self] title in self?.addQuickReminder(title) },
+            onQuickAddFocus: { [weak self] active in self?.setQuickAddActive(active) },
+            onOpenSettings: { Self.openSettings() }
         )
 
         let hosting = PassthroughHostingView(rootView: view)
@@ -130,8 +139,14 @@ final class NotchPanelController {
         // already-expanded panel is never yanked away mid-interaction.
         let suppressed = PeekSuppression.evaluate(on: currentScreen).suppressed
 
+        // Completed and snoozed items leave the acknowledged set with the
+        // due set; a returning snooze counts as newly due again.
+        let dueIDs = Set(model.items.map(\.id))
+        acknowledgedDueIDs.formIntersection(dueIDs)
+        let hasNewDue = !dueIDs.subtracting(acknowledgedDueIDs).isEmpty
+
         switch model.uiState {
-        case .hidden where model.hasContent && !suppressed:
+        case .hidden where hasNewDue && !suppressed:
             model.uiState = .peek
         case .peek where !model.hasContent || suppressed:
             model.uiState = .hidden
@@ -140,6 +155,12 @@ final class NotchPanelController {
         default:
             break
         }
+    }
+
+    /// Expanding over due items counts as seeing them (spec: the peek stays
+    /// until completed, snoozed, or dismissed — this is the dismissal).
+    private func acknowledgeVisibleDueItems() {
+        acknowledgedDueIDs.formUnion(model.items.map(\.id))
     }
 
     // MARK: - Hover
@@ -172,7 +193,10 @@ final class NotchPanelController {
                 Task { @MainActor in
                     guard let self = NotchPanel.shared else { return }
                     self.collapseTimer = nil
-                    self.model.uiState = self.model.hasContent ? .peek : .hidden
+                    // The user expanded and left: they have seen the due
+                    // items, so retract fully instead of re-peeking.
+                    self.acknowledgeVisibleDueItems()
+                    self.model.uiState = .hidden
                 }
             }
         }
@@ -214,6 +238,38 @@ final class NotchPanelController {
         refresh()
     }
 
+    /// Quick add straight from the notch — the menu bar shortcut the panel
+    /// was missing.
+    private func addQuickReminder(_ title: String) {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        let context = ModelContext(container)
+        if let list = try? context.defaultList() {
+            let item = ReminderItem(title: trimmed, listID: list.id)
+            context.insert(item)
+            try? context.save()
+            Task { await ReminderSyncService.syncNow(context: ModelContext(container)) }
+        }
+        refresh()
+    }
+
+    /// The panel is nonactivating so hover never steals focus; typing in the
+    /// quick-add field needs key status, granted only while the field is
+    /// active and returned the moment it isn't.
+    private func setQuickAddActive(_ active: Bool) {
+        panel?.allowsKey = active
+        if active {
+            panel?.makeKey()
+        } else {
+            panel?.resignKey()
+        }
+    }
+
+    static func openSettings() {
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+    }
+
     private func snooze(_ item: NotchItem, option: SnoozeOption) {
         let context = ModelContext(container)
         if let target = try? context.fetch(FetchDescriptor<ReminderItem>()).first(where: { $0.id == item.id }) {
@@ -235,12 +291,16 @@ enum NotchPanel {
 
 /// AppKit constrains windows below the menu bar by default; the notch panel
 /// must hug the physical top of the screen, so the constraint is disabled.
-private final class NotchNSPanel: NSPanel {
+final class NotchNSPanel: NSPanel {
+    /// Key status is granted only while the quick-add field is active, so
+    /// plain hovering never steals focus from whatever the user is typing in.
+    var allowsKey = false
+
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
         frameRect
     }
 
-    override var canBecomeKey: Bool { false }
+    override var canBecomeKey: Bool { allowsKey }
     override var canBecomeMain: Bool { false }
 }
 

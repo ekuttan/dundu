@@ -12,8 +12,10 @@ struct MenuBarView: View {
     ) private var openReminders: [ReminderItem]
 
     @State private var quickAddTitle = ""
-    @State private var quickDue: QuickDue = .none
-    @State private var customDueDate = Date()
+    /// The concrete due date that will be saved — resolved the moment a
+    /// preset is picked, so what you see is exactly what gets stored.
+    @State private var quickDueDate: Date?
+    @State private var editingDueDate = false
     @State private var accessStatus = EventKitBridge.accessStatus()
 
     var body: some View {
@@ -28,34 +30,64 @@ struct MenuBarView: View {
                     .onSubmit(addReminder)
 
                 Menu {
-                    ForEach(QuickDue.allCases) { option in
-                        Button(option.rawValue) { quickDue = option }
+                    Button("In 1 hour (\(Self.timeLabel(SnoozeOption.oneHour.resolve())))") {
+                        setDue(SnoozeOption.oneHour.resolve())
+                    }
+                    Button("This evening (\(Self.timeLabel(SnoozeOption.thisEvening.resolve())))") {
+                        setDue(SnoozeOption.thisEvening.resolve())
+                    }
+                    Button("Tomorrow morning (\(Self.timeLabel(SnoozeOption.tomorrowMorning.resolve())))") {
+                        setDue(SnoozeOption.tomorrowMorning.resolve())
+                    }
+                    Divider()
+                    Button("Pick date & time…") {
+                        setDue(SnoozeOption.oneHour.resolve())
+                        editingDueDate = true
                     }
                 } label: {
-                    Image(systemName: quickDue == .none ? "calendar.badge.plus" : "calendar.badge.clock")
-                        .foregroundStyle(quickDue == .none ? .secondary : Color.accentColor)
+                    Image(systemName: quickDueDate == nil ? "calendar.badge.plus" : "calendar.badge.clock")
+                        .foregroundStyle(quickDueDate == nil ? .secondary : Color.accentColor)
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
+                .help("Add a due date to the new reminder")
             }
 
-            if quickDue != .none {
-                HStack {
-                    if quickDue == .custom {
-                        DatePicker("Due", selection: $customDueDate)
-                            .datePickerStyle(.compact)
-                            .font(.caption)
+            if let due = quickDueDate {
+                HStack(spacing: Tokens.Spacing.sm) {
+                    Image(systemName: "calendar")
+                        .foregroundStyle(.secondary)
+                    if editingDueDate {
+                        // Field style: inline steppers, no popover — popovers
+                        // misbehave inside menu bar windows.
+                        DatePicker("", selection: Binding(
+                            get: { due },
+                            set: { quickDueDate = $0 }
+                        ))
+                        .datePickerStyle(.field)
+                        .labelsHidden()
                     } else {
-                        Text("Due \(quickDue.rawValue.lowercased())")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        Button {
+                            editingDueDate = true
+                        } label: {
+                            Text("Due \(Self.dueLabel(due))")
+                        }
+                        .buttonStyle(.plain)
+                        .help("Edit the due date")
                     }
                     Spacer()
-                    Button("Clear") { quickDue = .none }
-                        .buttonStyle(.plain)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Button {
+                        quickDueDate = nil
+                        editingDueDate = false
+                    } label: {
+                        Label("Remove", systemImage: "xmark.circle.fill")
+                            .labelStyle(.titleAndIcon)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help("Remove the due date — the reminder saves without one")
                 }
+                .font(.caption)
             }
 
             if openReminders.isEmpty {
@@ -92,13 +124,21 @@ struct MenuBarView: View {
             Divider()
 
             HStack {
-                SettingsLink {
-                    Text("Settings…")
-                }
                 Spacer()
-                Button("Quit Dundu") {
-                    NSApplication.shared.terminate(nil)
+                Menu {
+                    SettingsLink {
+                        Text("Settings…")
+                    }
+                    Divider()
+                    Button("Quit Dundu") {
+                        NSApplication.shared.terminate(nil)
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .foregroundStyle(.secondary)
                 }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
             }
         }
         .padding(Tokens.Spacing.lg)
@@ -149,14 +189,15 @@ struct MenuBarView: View {
             let list = try context.defaultList()
             let item = ReminderItem(title: title, listID: list.id)
             item.sortOrder = (openReminders.last?.sortOrder ?? 0) + 1
-            if let due = quickDue.resolve(customDate: customDueDate) {
+            if let due = quickDueDate {
                 item.dueDate = due
                 item.hasTime = true
             }
             context.insert(item)
             try context.save()
             quickAddTitle = ""
-            quickDue = .none
+            quickDueDate = nil
+            editingDueDate = false
             Task { await ReminderSyncService.syncNow(context: context) }
         } catch {
             assertionFailure("Quick add failed: \(error)")
@@ -164,24 +205,23 @@ struct MenuBarView: View {
     }
 }
 
-/// Due-date presets for the menu bar quick add. Date maths resolves against
-/// the actual clock, reusing the snooze arithmetic.
-enum QuickDue: String, CaseIterable, Identifiable {
-    case none = "No due date"
-    case oneHour = "In 1 hour"
-    case evening = "This evening"
-    case tomorrow = "Tomorrow morning"
-    case custom = "Pick date & time"
+extension MenuBarView {
+    private func setDue(_ date: Date) {
+        quickDueDate = date
+        editingDueDate = false
+    }
 
-    var id: String { rawValue }
+    /// "6:00 PM"
+    static func timeLabel(_ date: Date) -> String {
+        date.formatted(date: .omitted, time: .shortened)
+    }
 
-    func resolve(customDate: Date, now: Date = Date()) -> Date? {
-        switch self {
-        case .none: nil
-        case .oneHour: SnoozeOption.oneHour.resolve(from: now)
-        case .evening: SnoozeOption.thisEvening.resolve(from: now)
-        case .tomorrow: SnoozeOption.tomorrowMorning.resolve(from: now)
-        case .custom: customDate
-        }
+    /// "today 6:00 PM", "tomorrow 9:00 AM", "Sat 9 Aug, 3:00 PM"
+    static func dueLabel(_ date: Date) -> String {
+        let calendar = Calendar.current
+        let time = timeLabel(date)
+        if calendar.isDateInToday(date) { return "today \(time)" }
+        if calendar.isDateInTomorrow(date) { return "tomorrow \(time)" }
+        return date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)) + ", " + time
     }
 }
