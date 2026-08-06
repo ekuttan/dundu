@@ -24,9 +24,10 @@ struct MenuBarView: View {
                 accessBanner
             }
 
+            VStack(alignment: .leading, spacing: Tokens.Spacing.sm) {
             HStack(spacing: Tokens.Spacing.sm) {
                 TextField("Quick add…", text: $quickAddTitle)
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(.plain)
                     .onSubmit(addReminder)
 
                 Menu {
@@ -55,8 +56,6 @@ struct MenuBarView: View {
 
             if let due = quickDueDate {
                 HStack(spacing: Tokens.Spacing.sm) {
-                    Image(systemName: "calendar")
-                        .foregroundStyle(.secondary)
                     if editingDueDate {
                         // Field style: inline steppers, no popover — popovers
                         // misbehave inside menu bar windows.
@@ -70,9 +69,14 @@ struct MenuBarView: View {
                         Button {
                             editingDueDate = true
                         } label: {
-                            Text("Due \(Self.dueLabel(due))")
+                            Label("Due \(Self.dueLabel(due))", systemImage: "calendar")
+                                .font(.caption.bold())
                         }
                         .buttonStyle(.plain)
+                        .padding(.horizontal, Tokens.Spacing.sm)
+                        .padding(.vertical, 3)
+                        .foregroundStyle(Self.dueColor(due))
+                        .background(Self.dueColor(due).opacity(0.16), in: Capsule())
                         .help("Edit the due date")
                     }
                     Spacer()
@@ -89,6 +93,9 @@ struct MenuBarView: View {
                 }
                 .font(.caption)
             }
+            }
+            .padding(Tokens.Spacing.sm)
+            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: Tokens.Radius.card))
 
             if openReminders.isEmpty {
                 Text("All clear")
@@ -96,7 +103,9 @@ struct MenuBarView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, Tokens.Spacing.lg)
             } else {
-                ForEach(openReminders.prefix(5)) { reminder in
+                ScrollView {
+                LazyVStack(alignment: .leading, spacing: Tokens.Spacing.sm) {
+                ForEach(visibleReminders) { reminder in
                     HStack(spacing: Tokens.Spacing.sm) {
                         Button {
                             context.setCompleted(reminder, true)
@@ -119,6 +128,9 @@ struct MenuBarView: View {
                         }
                     }
                 }
+                }
+                }
+                .frame(maxHeight: 260)
             }
 
             Divider()
@@ -206,6 +218,25 @@ struct MenuBarView: View {
 }
 
 extension MenuBarView {
+    /// Due-soonest first, then newest — a just-added item is always visible,
+    /// and the whole list scrolls instead of cutting off at five.
+    private var visibleReminders: [ReminderItem] {
+        openReminders.sorted {
+            let a = $0.dueDate ?? .distantFuture
+            let b = $1.dueDate ?? .distantFuture
+            if a != b { return a < b }
+            return $0.createdAt > $1.createdAt
+        }
+    }
+
+    /// Urgency at a glance: red past, orange today, blue tomorrow, green later.
+    static func dueColor(_ date: Date, now: Date = Date()) -> Color {
+        if date < now { return Tokens.Colors.overdue }
+        if Calendar.current.isDateInToday(date) { return Tokens.Colors.dueSoon }
+        if Calendar.current.isDateInTomorrow(date) { return .blue }
+        return .green
+    }
+
     private func setDue(_ date: Date) {
         quickDueDate = date
         editingDueDate = false

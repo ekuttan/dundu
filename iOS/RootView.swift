@@ -83,8 +83,11 @@ struct SettingsPlaceholderView: View {
                     } label: {
                         Label("Apple Reminders", systemImage: "checklist")
                     }
-                    Label("Google Calendar — arrives with M9", systemImage: "calendar")
-                        .foregroundStyle(.tertiary)
+                    NavigationLink {
+                        GoogleAccountsView()
+                    } label: {
+                        Label("Google Calendar", systemImage: "calendar")
+                    }
                 }
                 Section("Intelligence") {
                     NavigationLink {
