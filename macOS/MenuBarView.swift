@@ -65,6 +65,11 @@ struct MenuBarView: View {
         .padding(Tokens.Spacing.lg)
         .frame(width: 320)
         .task {
+            // The Mac has no onboarding screen, so the access ask lives here:
+            // first open of the menu bar extra triggers the system dialog.
+            if EventKitBridge.accessStatus() == .notDetermined {
+                _ = try? await ReminderSyncService.bridge.requestFullAccess()
+            }
             await ReminderSyncService.syncNow(context: context)
             for await _ in await ReminderSyncService.bridge.observeChanges() {
                 try? await Task.sleep(for: ReminderSyncService.changeDebounce)
