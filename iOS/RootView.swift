@@ -11,7 +11,7 @@ struct RootView: View {
         TabView {
             TodayView()
                 .tabItem { Label("Today", systemImage: "sun.max") }
-            ListsPlaceholderView()
+            ListsView()
                 .tabItem { Label("Lists", systemImage: "list.bullet") }
             InboxPlaceholderView()
                 .tabItem { Label("Inbox", systemImage: "tray") }
@@ -31,19 +31,6 @@ struct RootView: View {
             if phase == .active {
                 Task { await ReminderSyncService.syncNow(context: context) }
             }
-        }
-    }
-}
-
-struct ListsPlaceholderView: View {
-    var body: some View {
-        NavigationStack {
-            ContentUnavailableView(
-                "Lists arrive with M6",
-                systemImage: "list.bullet",
-                description: Text("Lists with counts, backed by the local store.")
-            )
-            .navigationTitle("Lists")
         }
     }
 }
