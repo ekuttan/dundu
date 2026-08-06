@@ -72,8 +72,11 @@ struct SettingsPlaceholderView: View {
                         .foregroundStyle(.tertiary)
                 }
                 Section("Intelligence") {
-                    Label("Profile context — arrives with M12", systemImage: "brain")
-                        .foregroundStyle(.tertiary)
+                    NavigationLink {
+                        ProfileContextView()
+                    } label: {
+                        Label("Profile context", systemImage: "brain")
+                    }
                 }
             }
             .navigationTitle("Settings")
