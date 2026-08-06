@@ -40,6 +40,20 @@ public final class ReminderItem {
     public var reviewStateRaw: String = ReviewState.none.rawValue
     public var locationAlarm: LocationAlarm?
 
+    // Intelligence layer state (M13+). All optional so the CloudKit schema
+    // migrates cleanly; nil means "nothing to review".
+    /// Routing confidence 0–100 from the last routing decision.
+    public var routingConfidence: Int?
+    /// One-sentence reason from the router, shown on Inbox cards.
+    public var routingReason: String?
+    /// Where routing wanted to put the item when it wasn't sure enough to
+    /// move it silently (a `ReminderList.id` UUID string).
+    public var proposedTargetID: String?
+    /// Proposed repair for a garbled title. Never auto-applied — always asked.
+    public var suggestedTitle: String?
+    /// Repair confidence 0–100.
+    public var repairConfidence: Int?
+
     public init(
         id: UUID = UUID(),
         title: String,

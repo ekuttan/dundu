@@ -140,6 +140,7 @@ public enum ReminderSyncService {
         }
 
         // 6. Local writes.
+        var ingestedItems: [ReminderItem] = []
         for write in plan.localWrites {
             switch write {
             case .createFromRemote(let remote):
@@ -147,6 +148,7 @@ public enum ReminderSyncService {
                 apply(remote.payload, to: item, listsByExternalID: listsByExternalID)
                 item.modifiedAt = now
                 context.insert(item)
+                ingestedItems.append(item)
                 let mapping = try context.upsertMapping(
                     localID: item.id, bridgeID: .eventkit, externalID: remote.externalID
                 )
@@ -193,6 +195,27 @@ public enum ReminderSyncService {
 
         try context.purgeExpiredTombstones(now: now)
         try context.save()
+
+        // 8. Intelligence on ingest (spec §9 trigger 1): every new remote
+        // item runs routing and repair. Silent when confident, queued for
+        // the Inbox when not. Runs after save so a crash mid-AI never loses
+        // the item itself; a routing move dirties modifiedAt and rides the
+        // next pass.
+        if !ingestedItems.isEmpty {
+            let profile = ProfileContextStore().load()
+            let allLists = try context.fetch(FetchDescriptor<ReminderList>())
+            var movedAny = false
+            for item in ingestedItems {
+                let moved = await IntelligenceService.processIngested(
+                    item, lists: allLists, profile: profile, now: now
+                )
+                movedAny = movedAny || moved
+            }
+            try context.save()
+            if movedAny {
+                rerunRequested = true
+            }
+        }
     }
 
     // MARK: - Lists
