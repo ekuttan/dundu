@@ -313,6 +313,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Dundu syncs your reminders two ways with Apple Reminders.";
+				INFOPLIST_KEY_NSFocusStatusUsageDescription = "Dundu keeps the notch quiet while a Focus is on.";
 				INFOPLIST_KEY_LSUIElement = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -339,6 +340,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Dundu syncs your reminders two ways with Apple Reminders.";
+				INFOPLIST_KEY_NSFocusStatusUsageDescription = "Dundu keeps the notch quiet while a Focus is on.";
 				INFOPLIST_KEY_LSUIElement = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

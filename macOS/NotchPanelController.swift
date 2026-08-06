@@ -50,16 +50,32 @@ final class NotchPanelController {
     func start() {
         rebuildPanel()
         scheduler.onFire = { [weak self] in self?.refresh() }
+        PeekSuppression.requestFocusAuthorizationIfNeeded()
         refresh()
     }
+
+    /// The chosen display, defaulting to the built-in notch display.
+    static func targetScreen() -> NSScreen? {
+        let preferred = MacPrefs.notchDisplayID
+        if preferred != 0 {
+            for screen in NSScreen.screens {
+                let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
+                if number?.uint32Value == preferred {
+                    return screen
+                }
+            }
+        }
+        return NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.main
+    }
+
+    private var currentScreen: NSScreen?
 
     func rebuildPanel() {
         panel?.orderOut(nil)
         panel = nil
 
-        guard let screen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.main else {
-            return
-        }
+        guard let screen = Self.targetScreen() else { return }
+        currentScreen = screen
         let geometry = NotchGeometry.compute(for: screen)
         self.geometry = geometry
 
@@ -109,12 +125,15 @@ final class NotchPanelController {
         model.refresh(context: context)
         scheduler.rearm(for: model.nextFire?.date)
 
-        // A due item raises the peek; an emptied list retracts everything
-        // unless the user is mid-interaction in the expanded panel.
+        // Suppression stops Dundu volunteering a peek while the user is
+        // presenting, sharing, or in a Focus. Hover still works, and an
+        // already-expanded panel is never yanked away mid-interaction.
+        let suppressed = PeekSuppression.evaluate(on: currentScreen).suppressed
+
         switch model.uiState {
-        case .hidden where model.hasContent:
+        case .hidden where model.hasContent && !suppressed:
             model.uiState = .peek
-        case .peek where !model.hasContent:
+        case .peek where !model.hasContent || suppressed:
             model.uiState = .hidden
         case .expanded where !model.hasContent && undoTimers.isEmpty:
             model.uiState = .hidden

@@ -6,6 +6,8 @@ import DunduKit
 struct RootView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage("hasOnboarded") private var hasOnboarded = false
+    @State private var showOnboarding = false
 
     var body: some View {
         TabView {
@@ -17,6 +19,14 @@ struct RootView: View {
                 .tabItem { Label("Inbox", systemImage: "tray") }
             SettingsPlaceholderView()
                 .tabItem { Label("Settings", systemImage: "gearshape") }
+        }
+        .onAppear {
+            showOnboarding = !hasOnboarded
+        }
+        .sheet(isPresented: $showOnboarding, onDismiss: {
+            Task { await ReminderSyncService.syncNow(context: context) }
+        }) {
+            OnboardingView()
         }
         .task {
             // Initial pass, then a debounced pass per EKEventStoreChanged.

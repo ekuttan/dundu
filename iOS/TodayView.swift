@@ -21,6 +21,7 @@ struct TodayView: View {
         NavigationStack {
             List {
                 if searchText.isEmpty {
+                    deniedBanner
                     quickAddRow
                     sections
                 } else {
@@ -120,6 +121,31 @@ struct TodayView: View {
                     ReminderRow(reminder: reminder)
                         .contentShape(Rectangle())
                         .onTapGesture { editingReminder = reminder }
+                }
+            }
+        }
+    }
+
+    // MARK: - Denied state
+
+    /// A banner with a settings link, not a wall — the app works standalone
+    /// without Apple sync.
+    @ViewBuilder
+    private var deniedBanner: some View {
+        let status = EventKitBridge.accessStatus()
+        if status == .denied || status == .restricted || status == .writeOnly {
+            Section {
+                VStack(alignment: .leading, spacing: Tokens.Spacing.xs) {
+                    Label("Apple Reminders sync is off", systemImage: "exclamationmark.triangle")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.orange)
+                    Text("Dundu still works on its own. Allow Reminders access to sync both ways.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        Link("Open Settings", destination: url)
+                            .font(.caption.bold())
+                    }
                 }
             }
         }

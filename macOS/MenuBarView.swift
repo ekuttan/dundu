@@ -53,9 +53,9 @@ struct MenuBarView: View {
             Divider()
 
             HStack {
-                Text("Notch panel arrives with M4")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                SettingsLink {
+                    Text("Settings…")
+                }
                 Spacer()
                 Button("Quit Dundu") {
                     NSApplication.shared.terminate(nil)

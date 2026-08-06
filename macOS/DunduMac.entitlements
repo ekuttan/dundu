@@ -16,6 +16,10 @@
 	</array>
 	<key>com.apple.developer.aps-environment</key>
 	<string>development</string>
+	<!-- Focus suppression needs com.apple.developer.focus-status, which
+	     automatic CLI provisioning cannot add. Enable the Focus Status
+	     capability on the App ID in Xcode's Signing & Capabilities to turn
+	     it on; the code degrades gracefully without it. -->
 	<key>com.apple.security.network.client</key>
 	<true/>
 	<key>com.apple.security.files.user-selected.read-only</key>

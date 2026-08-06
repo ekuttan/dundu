@@ -40,5 +40,9 @@ struct DunduMacApp: App {
                 .modelContainer(container)
         }
         .menuBarExtraStyle(.window)
+
+        Settings {
+            MacSettingsView()
+        }
     }
 }
