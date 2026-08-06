@@ -248,6 +248,7 @@
 				DEVELOPMENT_TEAM = 792L89JQN6;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Used only to pick a place for arrive and leave alerts.";
 				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Dundu syncs your reminders two ways with Apple Reminders.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -279,6 +280,7 @@
 				DEVELOPMENT_TEAM = 792L89JQN6;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_UIBackgroundModes = "remote-notification";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Used only to pick a place for arrive and leave alerts.";
 				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Dundu syncs your reminders two ways with Apple Reminders.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -312,6 +314,7 @@
 				DEVELOPMENT_TEAM = 792L89JQN6;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Used only to pick a place for arrive and leave alerts.";
 				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Dundu syncs your reminders two ways with Apple Reminders.";
 				INFOPLIST_KEY_NSFocusStatusUsageDescription = "Dundu keeps the notch quiet while a Focus is on.";
 				INFOPLIST_KEY_LSUIElement = YES;
@@ -339,6 +342,7 @@
 				DEVELOPMENT_TEAM = 792L89JQN6;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Used only to pick a place for arrive and leave alerts.";
 				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "Dundu syncs your reminders two ways with Apple Reminders.";
 				INFOPLIST_KEY_NSFocusStatusUsageDescription = "Dundu keeps the notch quiet while a Focus is on.";
 				INFOPLIST_KEY_LSUIElement = YES;

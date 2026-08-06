@@ -21,6 +21,8 @@ struct ReminderEditView: View {
     @State private var hasTime = false
     @State private var priority: ItemPriority = .none
     @State private var listID: UUID?
+    @State private var locationAlarm: LocationAlarm?
+    @State private var showingLocationPicker = false
 
     var body: some View {
         NavigationStack {
@@ -41,6 +43,30 @@ struct ReminderEditView: View {
                         )
                         Toggle("Time", isOn: $hasTime.animation())
                     }
+                }
+
+                Section {
+                    if let alarm = locationAlarm {
+                        HStack {
+                            Label(alarm.title, systemImage: alarm.proximity == .enter
+                                ? "arrow.down.right.circle" : "arrow.up.right.circle")
+                            Spacer()
+                            Text(alarm.proximity == .enter ? "On arrival" : "On leaving")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Button("Remove location alert", role: .destructive) {
+                            locationAlarm = nil
+                        }
+                    } else {
+                        Button {
+                            showingLocationPicker = true
+                        } label: {
+                            Label("Add location alert", systemImage: "location")
+                        }
+                    }
+                } footer: {
+                    Text("Fired by the system through Apple Reminders — works even when Dundu isn't running.")
                 }
 
                 Section {
@@ -69,6 +95,11 @@ struct ReminderEditView: View {
                 }
             }
             .onAppear(perform: load)
+            .sheet(isPresented: $showingLocationPicker) {
+                LocationPickerView { alarm in
+                    locationAlarm = alarm
+                }
+            }
         }
     }
 
@@ -84,6 +115,7 @@ struct ReminderEditView: View {
         hasTime = existing.hasTime
         priority = existing.priority
         listID = existing.listID
+        locationAlarm = existing.locationAlarm
     }
 
     private func save() {
@@ -104,6 +136,7 @@ struct ReminderEditView: View {
         item.hasTime = hasDueDate && hasTime
         item.priority = priority
         item.listID = listID ?? (try? context.defaultList())?.id
+        item.locationAlarm = locationAlarm
         item.modifiedAt = Date()
 
         try? context.save()
