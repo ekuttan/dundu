@@ -67,11 +67,15 @@ struct NotchView: View {
     // MARK: - Expanded
 
     private var expandedPanel: some View {
-        VStack(alignment: .leading, spacing: Tokens.Spacing.sm) {
+        // Due rows take priority; upcoming fills whatever space remains.
+        let due = Array(model.items.prefix(4))
+        let upcoming = Array(model.upcoming.prefix(5 - due.count))
+
+        return VStack(alignment: .leading, spacing: Tokens.Spacing.sm) {
             Color.clear.frame(height: geometry.notchRect.height)
 
             HStack {
-                Text(model.items.isEmpty ? "All clear" : "Due now")
+                Text(due.isEmpty ? (upcoming.isEmpty ? "All clear" : "Next up") : "Due now")
                     .font(.caption.bold())
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -89,7 +93,25 @@ struct NotchView: View {
             }
             .padding(.horizontal, Tokens.Spacing.lg)
 
-            ForEach(model.items.prefix(5)) { item in
+            ForEach(due) { item in
+                NotchRow(
+                    item: item,
+                    isPendingUndo: model.pendingUndo.contains(item.id),
+                    onComplete: onComplete,
+                    onUndo: onUndo,
+                    onSnooze: onSnooze
+                )
+                .padding(.horizontal, Tokens.Spacing.md)
+            }
+
+            if !due.isEmpty && !upcoming.isEmpty {
+                Text("Next up")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, Tokens.Spacing.lg)
+            }
+
+            ForEach(upcoming) { item in
                 NotchRow(
                     item: item,
                     isPendingUndo: model.pendingUndo.contains(item.id),

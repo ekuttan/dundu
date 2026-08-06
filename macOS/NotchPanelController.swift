@@ -135,7 +135,7 @@ final class NotchPanelController {
             model.uiState = .peek
         case .peek where !model.hasContent || suppressed:
             model.uiState = .hidden
-        case .expanded where !model.hasContent && undoTimers.isEmpty:
+        case .expanded where !model.hasContent && undoTimers.isEmpty && !isHovering:
             model.uiState = .hidden
         default:
             break
@@ -144,17 +144,22 @@ final class NotchPanelController {
 
     // MARK: - Hover
 
+    private var isHovering = false
+
     private func hoverChanged(_ hovering: Bool) {
+        isHovering = hovering
         if hovering {
             collapseTimer?.invalidate()
             collapseTimer = nil
-            guard model.uiState != .expanded, model.hasContent else { return }
+            // Hover expands any time — the notch answers "what's next" on
+            // demand, not only when something is already due.
+            guard model.uiState != .expanded else { return }
             guard expandTimer == nil else { return }
             expandTimer = Timer.scheduledTimer(withTimeInterval: Self.expandDelay, repeats: false) { _ in
                 Task { @MainActor in
                     guard let self = NotchPanel.shared else { return }
                     self.expandTimer = nil
-                    if self.model.hasContent {
+                    if self.isHovering {
                         self.model.uiState = .expanded
                     }
                 }

@@ -21,6 +21,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let controller = NotchPanelController(container: MacStores.container)
             NotchPanel.shared = controller
             controller.start()
+
+            // Ask at launch, not on first menu-bar open — the dialog should
+            // greet the user, not hide until they find the icon.
+            if EventKitBridge.accessStatus() == .notDetermined {
+                _ = try? await ReminderSyncService.bridge.requestFullAccess()
+            }
+            await ReminderSyncService.syncNow(context: ModelContext(MacStores.container))
+            controller.refresh()
         }
     }
 }

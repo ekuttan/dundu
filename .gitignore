@@ -8,3 +8,4 @@ build/
 
 # Personal context — not for the public repo (see README "Secrets and privacy")
 dundu-prd.md
+build.noindex/

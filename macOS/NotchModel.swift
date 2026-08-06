@@ -18,7 +18,11 @@ struct NotchItem: Identifiable, Equatable {
 @MainActor
 final class NotchModel {
     var uiState: NotchUIState = .hidden
+    /// Currently due, most overdue first. Drives the peek.
     var items: [NotchItem] = []
+    /// Scheduled ahead, soonest first. Shown when the panel is opened by
+    /// hand — the notch answers "what's next" on hover, any time.
+    var upcoming: [NotchItem] = []
     var reduceMotion = false
     /// Items completed in the notch, inside their 3-second undo window.
     var pendingUndo: Set<UUID> = []
@@ -46,7 +50,10 @@ final class NotchModel {
             items = [
                 NotchItem(id: UUID(), title: "Call the accountant", dueDate: now.addingTimeInterval(-1800), isOverdue: true),
                 NotchItem(id: UUID(), title: "Send the deck", dueDate: now.addingTimeInterval(-300), isOverdue: true),
+            ]
+            upcoming = [
                 NotchItem(id: UUID(), title: "Pick up the car", dueDate: now.addingTimeInterval(3600), isOverdue: false),
+                NotchItem(id: UUID(), title: "Review the filing", dueDate: now.addingTimeInterval(2 * 3600), isOverdue: false),
             ]
             return
         }
@@ -58,6 +65,12 @@ final class NotchModel {
         items = ScheduleCalculator.dueReminders(open, now: now)
             .prefix(5)
             .map { NotchItem(id: $0.scheduleID, title: $0.scheduleTitle, dueDate: $0.scheduleDate, isOverdue: true) }
+
+        upcoming = open
+            .filter { ($0.dueDate.map { $0 > now }) ?? false }
+            .sorted { ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture) }
+            .prefix(5)
+            .map { NotchItem(id: $0.id, title: $0.title, dueDate: $0.dueDate, isOverdue: false) }
 
         // Events join in M11; until then the next fire is the next due
         // reminder with a time.
