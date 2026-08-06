@@ -307,6 +307,7 @@ public actor EventKitBridge: SyncBridge {
             completedAt: reminder.completionDate,
             url: reminder.url,
             lastModified: reminder.lastModifiedDate,
+            created: reminder.creationDate,
             alarmOffsets: offsets,
             locationAlarm: locationAlarm,
             hasRecurrence: reminder.hasRecurrenceRules

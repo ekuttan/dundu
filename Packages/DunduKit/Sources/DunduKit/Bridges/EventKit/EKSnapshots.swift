@@ -20,6 +20,8 @@ public struct EKReminderSnapshot: Sendable, Codable, Equatable {
     public var completedAt: Date?
     public var url: URL?
     public var lastModified: Date?
+    /// Remote creation date, feeding the Siri-origin recency heuristic.
+    public var created: Date?
     /// Seconds relative to due date, location alarms excluded.
     public var alarmOffsets: [Double]
     /// First location alarm, if any. The rest round-trip untouched.

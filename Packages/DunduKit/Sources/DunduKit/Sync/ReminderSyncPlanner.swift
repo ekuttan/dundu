@@ -18,11 +18,14 @@ public enum ReminderSyncPlanner {
     public struct RemoteState: Sendable, Equatable {
         public var externalID: String
         public var lastModified: Date?
+        /// Remote creation date; only the Siri-origin heuristic reads it.
+        public var created: Date?
         public var payload: ReminderWritePayload
 
-        public init(externalID: String, lastModified: Date?, payload: ReminderWritePayload) {
+        public init(externalID: String, lastModified: Date?, created: Date? = nil, payload: ReminderWritePayload) {
             self.externalID = externalID
             self.lastModified = lastModified
+            self.created = created
             self.payload = payload
         }
     }

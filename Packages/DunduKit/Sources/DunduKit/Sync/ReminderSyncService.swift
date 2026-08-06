@@ -95,6 +95,7 @@ public enum ReminderSyncService {
             ReminderSyncPlanner.RemoteState(
                 externalID: snapshot.externalID,
                 lastModified: snapshot.lastModified,
+                created: snapshot.created,
                 payload: snapshot.writePayload
             )
         }
@@ -144,7 +145,19 @@ public enum ReminderSyncService {
         for write in plan.localWrites {
             switch write {
             case .createFromRemote(let remote):
-                let item = ReminderItem(title: remote.payload.title, origin: .eventkit)
+                // Heuristic, honestly a heuristic: bare, fresh, spoken-looking
+                // items get flagged as probable dictation (spec §8).
+                let dictated = SiriOriginDetector.looksDictated(
+                    title: remote.payload.title,
+                    notes: remote.payload.notes,
+                    url: remote.payload.url,
+                    remoteCreatedAt: remote.created,
+                    now: now
+                )
+                let item = ReminderItem(
+                    title: remote.payload.title,
+                    origin: dictated ? .siriSuspected : .eventkit
+                )
                 apply(remote.payload, to: item, listsByExternalID: listsByExternalID)
                 item.modifiedAt = now
                 context.insert(item)
