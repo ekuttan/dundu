@@ -50,9 +50,17 @@ struct RootView: View {
             // Initial pass, then a debounced pass per EKEventStoreChanged.
             // Echo suppression is structural: our own writes plan to nothing.
             await ReminderSyncService.syncNow(context: context)
+            await GoogleSyncService.syncNow(context: context)
             for await _ in await ReminderSyncService.bridge.observeChanges() {
                 try? await Task.sleep(for: ReminderSyncService.changeDebounce)
                 await ReminderSyncService.syncNow(context: context)
+            }
+        }
+        .task {
+            // Google has no push without a webhook, so poll while running.
+            while !Task.isCancelled {
+                try? await Task.sleep(for: GoogleSyncService.pollInterval)
+                await GoogleSyncService.syncNow(context: context)
             }
         }
         .task {
@@ -67,7 +75,10 @@ struct RootView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
-                Task { await ReminderSyncService.syncNow(context: context) }
+                Task {
+                    await ReminderSyncService.syncNow(context: context)
+                    await GoogleSyncService.syncNow(context: context)
+                }
             }
         }
     }

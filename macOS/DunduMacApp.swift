@@ -28,7 +28,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 _ = try? await ReminderSyncService.bridge.requestFullAccess()
             }
             await ReminderSyncService.syncNow(context: ModelContext(MacStores.container))
+            await GoogleSyncService.syncNow(context: ModelContext(MacStores.container))
             controller.refresh()
+
+            // Google has no push without a webhook: poll every 5 minutes
+            // while running (spec §7).
+            while true {
+                try? await Task.sleep(for: GoogleSyncService.pollInterval)
+                await GoogleSyncService.syncNow(context: ModelContext(MacStores.container))
+            }
         }
     }
 }
