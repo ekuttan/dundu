@@ -53,11 +53,28 @@ final class NotchPanelController {
 
     // MARK: - Setup
 
+    private var lastGoogleSync = Date.distantPast
+
     func start() {
         rebuildPanel()
-        scheduler.onFire = { [weak self] in self?.refresh() }
+        scheduler.onFire = { [weak self] in self?.fireArrived() }
         PeekSuppression.requestFocusAuthorizationIfNeeded()
         refresh()
+    }
+
+    /// Spec §7: before the notch shows a meeting peek, sync if the last
+    /// Google pass is over 2 minutes old — the Join link must be fresh.
+    private func fireArrived() {
+        if case .meetingSoon = model.nextFire?.reason,
+           Date().timeIntervalSince(lastGoogleSync) > 120 {
+            lastGoogleSync = Date()
+            Task { @MainActor in
+                await GoogleSyncService.syncNow(context: ModelContext(container))
+                NotchPanel.shared?.refresh()
+            }
+        } else {
+            refresh()
+        }
     }
 
     /// The chosen display, defaulting to the built-in notch display.

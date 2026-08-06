@@ -229,13 +229,18 @@ private struct NotchRow: View {
 
     var body: some View {
         HStack(spacing: Tokens.Spacing.sm) {
-            Button {
-                isPendingUndo ? onUndo(item) : onComplete(item)
-            } label: {
-                Image(systemName: isPendingUndo ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(isPendingUndo ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+            if item.isMeeting {
+                Image(systemName: "video")
+                    .foregroundStyle(Tokens.Colors.meeting)
+            } else {
+                Button {
+                    isPendingUndo ? onUndo(item) : onComplete(item)
+                } label: {
+                    Image(systemName: isPendingUndo ? "checkmark.circle.fill" : "circle")
+                        .foregroundStyle(isPendingUndo ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
 
             Text(item.title)
                 .font(.callout)
@@ -257,16 +262,28 @@ private struct NotchRow: View {
                         .foregroundStyle(item.isOverdue ? Tokens.Colors.overdue : .secondary)
                 }
 
-                Menu {
-                    ForEach(SnoozeOption.allCases) { option in
-                        Button(option.rawValue) { onSnooze(item, option) }
+                if item.isMeeting {
+                    // Probably the single most used control in the app.
+                    if let url = item.joinURL {
+                        Button("Join") {
+                            NSWorkspace.shared.open(url)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .tint(Tokens.Colors.meeting)
                     }
-                } label: {
-                    Image(systemName: "zzz")
-                        .foregroundStyle(.secondary)
+                } else {
+                    Menu {
+                        ForEach(SnoozeOption.allCases) { option in
+                            Button(option.rawValue) { onSnooze(item, option) }
+                        }
+                    } label: {
+                        Image(systemName: "zzz")
+                            .foregroundStyle(.secondary)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
                 }
-                .menuStyle(.borderlessButton)
-                .fixedSize()
             }
         }
         .padding(.vertical, Tokens.Spacing.xs)

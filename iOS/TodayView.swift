@@ -14,6 +14,10 @@ struct TodayView: View {
         filter: #Predicate<ReminderItem> { $0.tombstonedAt == nil },
         sort: \ReminderItem.dueDate
     ) private var reminders: [ReminderItem]
+    @Query(
+        filter: #Predicate<CalendarEvent> { $0.tombstonedAt == nil },
+        sort: \CalendarEvent.startAt
+    ) private var events: [CalendarEvent]
 
     @State private var quickAddTitle = ""
     @FocusState private var quickAddFocused: Bool
@@ -81,9 +85,17 @@ struct TodayView: View {
         }
     }
 
+    private var todayEvents: [CalendarEvent] {
+        let calendar = Calendar.current
+        return events.filter {
+            calendar.isDateInToday($0.startAt) && $0.endAt > Date()
+        }
+    }
+
     @ViewBuilder
     private var sections: some View {
-        if overdue.isEmpty && dueToday.isEmpty && later.isEmpty && completedToday.isEmpty {
+        if overdue.isEmpty && dueToday.isEmpty && later.isEmpty
+            && completedToday.isEmpty && todayEvents.isEmpty {
             ContentUnavailableView(
                 "Nothing here yet",
                 systemImage: "checkmark.circle",
@@ -91,7 +103,20 @@ struct TodayView: View {
             )
         }
         reminderSection("Overdue", items: overdue)
-        reminderSection("Today", items: dueToday)
+        if !todayEvents.isEmpty {
+            Section("Today") {
+                ForEach(todayEvents) { event in
+                    EventRow(event: event)
+                }
+                ForEach(dueToday) { reminder in
+                    ReminderRow(reminder: reminder)
+                        .contentShape(Rectangle())
+                        .onTapGesture { editingReminder = reminder }
+                }
+            }
+        } else {
+            reminderSection("Today", items: dueToday)
+        }
         reminderSection("Later", items: later)
         reminderSection("Completed today", items: completedToday)
     }
@@ -217,6 +242,50 @@ struct TodayView: View {
         }
         try? context.save()
         Task { await ReminderSyncService.syncNow(context: context) }
+    }
+}
+
+/// A calendar event on Today: time, title, and the Join link when the
+/// event carries a conference URL.
+struct EventRow: View {
+    let event: CalendarEvent
+
+    var body: some View {
+        HStack(spacing: Tokens.Spacing.md) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(Formatters.clockTime(event.startAt, timeZoneID: event.timeZoneID))
+                    .font(.caption.bold().monospacedDigit())
+                Text(Formatters.clockTime(event.endAt, timeZoneID: event.timeZoneID))
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            .frame(width: 48, alignment: .leading)
+
+            RoundedRectangle(cornerRadius: 2)
+                .fill(Tokens.Colors.meeting)
+                .frame(width: 3)
+
+            VStack(alignment: .leading, spacing: Tokens.Spacing.xs) {
+                Text(event.title)
+                    .lineLimit(1)
+                if let location = event.location, !location.isEmpty {
+                    Text(location)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer()
+
+            if let url = event.conferenceURL {
+                Link("Join", destination: url)
+                    .font(.caption.bold())
+                    .buttonStyle(.borderedProminent)
+                    .tint(Tokens.Colors.meeting)
+            }
+        }
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
