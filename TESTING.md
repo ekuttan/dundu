@@ -73,11 +73,26 @@ and what "working" looks like. Report anything off and it gets fixed.
       without opening the app.
 - [ ] The daily 9am Inbox nudge arrives only when something is pending.
 
+## 8. Voice capture (new — needs your mic)
+
+- [ ] Today → mic button → speak several tasks in one go, e.g. the spec's
+      own example: "Call the CA about the DIFC filing before Thursday,
+      pick up the car from service tomorrow evening, and remind me when I
+      reach the office to send Joby the deck."
+- [ ] Live transcript shows while talking; transcription is on-device.
+- [ ] Stop → one editable card per action, with resolved dates ("tomorrow
+      evening" becomes an actual timestamp), proposed lists, and location
+      conditions.
+- [ ] Confirm → reminders save (with geofences for arrive/leave) and sync
+      to Apple Reminders. Cancel mid-review → cards park in the Inbox.
+- [ ] On Apple Intelligence hardware the model splits; elsewhere a
+      conservative rules splitter runs — cards are editable either way.
+
 ## Known gaps / not built yet
 
 | Item | Status |
 |---|---|
-| M17 voice capture | Next in development; needs your mic to test |
+| Voice capture on Mac | iOS only for now; menu bar record option is a follow-up |
 | M18 band tuning | Runs on your usage data; decision log already collecting |
 | Event edit UI on iOS | Events are sync + display only so far; edits flow Google→Dundu |
 | Recurring event edits | v1 rule: single instances only, series edits open Google Calendar |

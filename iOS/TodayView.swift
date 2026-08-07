@@ -23,6 +23,7 @@ struct TodayView: View {
     @FocusState private var quickAddFocused: Bool
     @State private var editingReminder: ReminderItem?
     @State private var showingNewSheet = false
+    @State private var showingVoiceCapture = false
     @State private var searchText = ""
 
     var body: some View {
@@ -47,12 +48,23 @@ struct TodayView: View {
                         Image(systemName: "plus")
                     }
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    // The prominent mic: say it instead of typing it.
+                    Button {
+                        showingVoiceCapture = true
+                    } label: {
+                        Image(systemName: "mic.fill")
+                    }
+                }
             }
             .sheet(item: $editingReminder) { reminder in
                 ReminderEditView(existing: reminder)
             }
             .sheet(isPresented: $showingNewSheet) {
                 ReminderEditView(existing: nil)
+            }
+            .sheet(isPresented: $showingVoiceCapture) {
+                VoiceCaptureView()
             }
         }
     }
