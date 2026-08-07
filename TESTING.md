@@ -16,8 +16,9 @@ and what "working" looks like. Report anything off and it gets fixed.
 - [ ] **Pull**: events from the last ~3 months and upcoming should appear
       on Today (today's ones) within a minute.
 - [ ] **Two-way**: create an event in Google Calendar web → appears in
-      Dundu within 5 min (or on app foreground). Rename it in Dundu (no
-      edit UI yet — via a future build; skip if blocked).
+      Dundu within 5 min (or on app foreground). Tap the event on Today →
+      edit sheet → rename it → the change lands in Google Calendar (etag'd
+      patch). Deleting there removes it from Google too.
 - [ ] **Meeting peek**: a Meet event starting within 5 minutes should drop
       the notch pill; expanded panel shows a Join button that opens Meet.
 - [ ] **Repeat sign-ins**: testing mode kills tokens after 7 days — the
@@ -94,7 +95,6 @@ and what "working" looks like. Report anything off and it gets fixed.
 |---|---|
 | Voice capture on Mac | iOS only for now; menu bar record option is a follow-up |
 | M18 band tuning | Runs on your usage data; decision log already collecting |
-| Event edit UI on iOS | Events are sync + display only so far; edits flow Google→Dundu |
 | Recurring event edits | v1 rule: single instances only, series edits open Google Calendar |
 | Focus suppression | Dormant until Focus Status capability is enabled on the App ID in Xcode |
 | Mac Google sign-in | Sign in on iPhone; Mac reads the synced events via CloudKit. Direct Mac sign-in works too but each device authenticates separately |

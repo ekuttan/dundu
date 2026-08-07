@@ -22,6 +22,7 @@ struct TodayView: View {
     @State private var quickAddTitle = ""
     @FocusState private var quickAddFocused: Bool
     @State private var editingReminder: ReminderItem?
+    @State private var editingEvent: CalendarEvent?
     @State private var showingNewSheet = false
     @State private var showingVoiceCapture = false
     @State private var searchText = ""
@@ -65,6 +66,9 @@ struct TodayView: View {
             }
             .sheet(isPresented: $showingVoiceCapture) {
                 VoiceCaptureView()
+            }
+            .sheet(item: $editingEvent) { event in
+                EventEditView(event: event)
             }
         }
     }
@@ -119,6 +123,8 @@ struct TodayView: View {
             Section("Today") {
                 ForEach(todayEvents) { event in
                     EventRow(event: event)
+                        .contentShape(Rectangle())
+                        .onTapGesture { editingEvent = event }
                 }
                 ForEach(dueToday) { reminder in
                     ReminderRow(reminder: reminder)
