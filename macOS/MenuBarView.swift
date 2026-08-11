@@ -138,8 +138,10 @@ struct MenuBarView: View {
             HStack {
                 Spacer()
                 Menu {
-                    SettingsLink {
-                        Text("Settings…")
+                    // Same opener as the notch's gear, so both land on the
+                    // same window whichever path macOS gives us.
+                    Button("Settings…") {
+                        SettingsWindow.open()
                     }
                     Divider()
                     Button("Quit Dundu") {

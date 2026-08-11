@@ -310,8 +310,21 @@ final class NotchPanelController {
     }
 
     static func openSettings() {
-        NSApp.activate(ignoringOtherApps: true)
-        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        // The panel floats above statusBar level, so a normal window can never
+        // rise over it — get out of the way before settings appears.
+        NotchPanel.shared?.collapse()
+        SettingsWindow.open()
+    }
+
+    /// Drops straight back to hidden, cancelling any pending hover timers.
+    func collapse() {
+        expandTimer?.invalidate()
+        expandTimer = nil
+        collapseTimer?.invalidate()
+        collapseTimer = nil
+        isHovering = false
+        acknowledgeVisibleDueItems()
+        model.uiState = .hidden
     }
 
     private func snooze(_ item: NotchItem, option: SnoozeOption) {
