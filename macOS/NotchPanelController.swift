@@ -116,9 +116,9 @@ final class NotchPanelController {
         )
 
         let hosting = PassthroughHostingView(rootView: view)
-        hosting.visibleRectProvider = { [weak self] in
+        hosting.screenRectProvider = { [weak self] in
             guard let self, let geometry = self.geometry else { return .zero }
-            return geometry.visibleRect(for: self.model.uiState)
+            return geometry.hoverRect(for: self.model.uiState)
         }
         hosting.onHoverChange = { [weak self] hovering in
             self?.hoverChanged(hovering)
@@ -138,6 +138,10 @@ final class NotchPanelController {
         panel.backgroundColor = .clear
         panel.hasShadow = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        // Without this, hover state only updates when the cursor crosses the
+        // panel's outer boundary — inside movement goes silent and the notch
+        // feels unresponsive.
+        panel.acceptsMouseMovedEvents = true
         panel.contentView = hosting
         panel.setFrame(geometry.panelFrame, display: true)
         panel.orderFrontRegardless()
@@ -146,7 +150,27 @@ final class NotchPanelController {
 
     // MARK: - Content
 
+    /// Recomputes geometry and re-applies the frame if the panel has drifted
+    /// from where it belongs. Cheap, and it self-heals a panel that ended up
+    /// off in the middle of nowhere — the state that reads as "the notch
+    /// pops up in random places".
+    func ensurePanelGeometry() {
+        guard let panel, let screen = Self.targetScreen() else { return }
+        let fresh = NotchGeometry.compute(for: screen)
+        guard fresh.panelFrame.width > 0 else { return }
+
+        if geometry != fresh || panel.frame != fresh.panelFrame {
+            geometry = fresh
+            currentScreen = screen
+            panel.setFrame(fresh.panelFrame, display: true)
+            if !panel.isVisible {
+                panel.orderFrontRegardless()
+            }
+        }
+    }
+
     func refresh() {
+        ensurePanelGeometry()
         let context = ModelContext(container)
         model.refresh(context: context)
         scheduler.rearm(for: model.nextFire?.date)
@@ -187,6 +211,9 @@ final class NotchPanelController {
     private func hoverChanged(_ hovering: Bool) {
         isHovering = hovering
         if hovering {
+            // Confirm the panel is still where it should be before growing
+            // it under the user's cursor.
+            ensurePanelGeometry()
             collapseTimer?.invalidate()
             collapseTimer = nil
             // Hover expands any time — the notch answers "what's next" on
@@ -327,7 +354,8 @@ final class NotchNSPanel: NSPanel {
 /// hover transitions against it. Tracking uses `.activeAlways` — the
 /// nonactivating panel makes hover work without the app being frontmost.
 final class PassthroughHostingView<Content: View>: NSHostingView<Content> {
-    var visibleRectProvider: (() -> CGRect)?
+    /// The live region for the current state, in screen coordinates.
+    var screenRectProvider: (() -> CGRect)?
     var onHoverChange: ((Bool) -> Void)?
 
     private var isInside = false
@@ -346,7 +374,9 @@ final class PassthroughHostingView<Content: View>: NSHostingView<Content> {
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
-        guard let rect = visibleRectProvider?(), rect.contains(convert(point, from: superview)) else {
+        guard let window, let rect = screenRectProvider?() else { return nil }
+        let windowPoint = superview?.convert(point, to: nil) ?? point
+        guard rect.contains(window.convertPoint(toScreen: windowPoint)) else {
             return nil
         }
         return super.hitTest(point)
@@ -354,12 +384,12 @@ final class PassthroughHostingView<Content: View>: NSHostingView<Content> {
 
     override func mouseMoved(with event: NSEvent) {
         super.mouseMoved(with: event)
-        updateHover(with: event)
+        updateHover()
     }
 
     override func mouseEntered(with event: NSEvent) {
         super.mouseEntered(with: event)
-        updateHover(with: event)
+        updateHover()
     }
 
     override func mouseExited(with event: NSEvent) {
@@ -367,10 +397,11 @@ final class PassthroughHostingView<Content: View>: NSHostingView<Content> {
         setInside(false)
     }
 
-    private func updateHover(with event: NSEvent) {
-        guard let rect = visibleRectProvider?() else { return }
-        let point = convert(event.locationInWindow, from: nil)
-        setInside(rect.contains(point))
+    /// Screen coordinates throughout: `NSEvent.mouseLocation` and the
+    /// geometry share one space, so no view-coordinate flip can invert this.
+    private func updateHover() {
+        guard let rect = screenRectProvider?() else { return }
+        setInside(rect.contains(NSEvent.mouseLocation))
     }
 
     private func setInside(_ inside: Bool) {

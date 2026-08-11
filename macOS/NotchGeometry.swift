@@ -11,8 +11,10 @@ struct NotchGeometry: Equatable {
     static let expandedSize = CGSize(width: 380, height: 220)
     /// Peek pill drops about 12pt below the notch.
     static let peekDrop: CGFloat = 26
-    /// Only a 4pt strip is hit-testable while hidden.
-    static let hiddenHoverStripHeight: CGFloat = 4
+    /// How far below the notch stays hoverable while hidden. The spec says
+    /// 4pt; that is unhittably thin in practice, so the strip is deeper
+    /// while still far from anything else clickable.
+    static let hiddenHoverStripHeight: CGFloat = 12
 
     static func compute(for screen: NSScreen) -> NotchGeometry {
         let frame = screen.frame
@@ -29,7 +31,12 @@ struct NotchGeometry: Equatable {
                 width: width,
                 height: notchHeight
             )
-            return NotchGeometry(notchRect: rect, hasHardwareNotch: true, screenFrame: frame)
+            // Trust but verify: a nonsensical rect (transient display state
+            // during wake, mode changes, or a hot-plugged screen) would put
+            // the panel somewhere absurd, so fall through to the pill.
+            if width > 0, frame.insetBy(dx: -1, dy: -1).contains(rect) {
+                return NotchGeometry(notchRect: rect, hasHardwareNotch: true, screenFrame: frame)
+            }
         }
 
         // No notch: a pill of the same dimensions centred under the menu bar.
@@ -58,30 +65,35 @@ struct NotchGeometry: Equatable {
         )
     }
 
-    /// Visible content rect inside the panel's coordinate space (origin at
-    /// panel bottom-left, AppKit-style) for a given UI state.
-    func visibleRect(for state: NotchUIState) -> CGRect {
-        let panel = panelFrame
-        let notchWidthInPanel = min(notchRect.width, panel.width)
-        let x = (panel.width - notchWidthInPanel) / 2
-
+    /// The live (hoverable, clickable) region for a state, in **screen
+    /// coordinates** — the same space `notchRect` and `NSEvent.mouseLocation`
+    /// live in.
+    ///
+    /// Deliberately not in view coordinates: NSHostingView's flippedness is
+    /// an implementation detail, and getting it backwards puts the hover
+    /// strip 250pt below the notch, which is exactly what "reacts randomly
+    /// while dragging a window, dead at the notch" looks like.
+    func hoverRect(for state: NotchUIState) -> CGRect {
         switch state {
         case .hidden:
+            // The notch plus a strip just under it. The cursor can't rest
+            // inside the physical notch, so the reachable target is the few
+            // points below it.
             return CGRect(
-                x: x,
-                y: panel.height - notchRect.height - Self.hiddenHoverStripHeight,
-                width: notchWidthInPanel,
+                x: notchRect.minX,
+                y: notchRect.minY - Self.hiddenHoverStripHeight,
+                width: notchRect.width,
                 height: notchRect.height + Self.hiddenHoverStripHeight
             )
         case .peek:
             return CGRect(
-                x: x - 12,
-                y: panel.height - notchRect.height - Self.peekDrop,
-                width: notchWidthInPanel + 24,
+                x: notchRect.minX - 12,
+                y: notchRect.maxY - notchRect.height - Self.peekDrop,
+                width: notchRect.width + 24,
                 height: notchRect.height + Self.peekDrop
             )
         case .expanded:
-            return CGRect(x: 0, y: 0, width: panel.width, height: panel.height)
+            return panelFrame
         }
     }
 }
