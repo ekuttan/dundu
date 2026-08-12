@@ -106,3 +106,8 @@ and what "working" looks like. Report anything off and it gets fixed.
 - Added items never vanish from the menu bar (scrolling, due-first list)
 - Quick add + due date as one control, color-coded chips, explicit Remove
 - Deterministic notch peek, bouncier animation, ⋯ menu for Settings/Quit
+- Notch responsiveness: hover and hit testing both in screen coordinates,
+  geometry validated on every refresh, panel self-heals if it drifts
+- The notch's gear opens settings — `showSettingsWindow:` never reached the
+  scene from a nonactivating panel in an LSUIElement app, so Dundu owns the
+  window now; the ⋯ menu uses the same opener
