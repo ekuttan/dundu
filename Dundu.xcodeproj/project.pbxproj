@@ -241,6 +241,7 @@
 		DC000003 /* Debug (iOS) */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS = NO;
 				CODE_SIGN_ENTITLEMENTS = "iOS/Dundu.entitlements";
 				CODE_SIGN_STYLE = Automatic;
@@ -275,6 +276,7 @@
 		DC000004 /* Release (iOS) */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS = NO;
 				CODE_SIGN_ENTITLEMENTS = "iOS/Dundu.entitlements";
 				CODE_SIGN_STYLE = Automatic;
@@ -310,6 +312,7 @@
 		DC000005 /* Debug (macOS) */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS = NO;
 				CODE_SIGN_ENTITLEMENTS = "macOS/DunduMac.entitlements";
 				CODE_SIGN_STYLE = Automatic;
@@ -340,6 +343,7 @@
 		DC000006 /* Release (macOS) */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS = NO;
 				CODE_SIGN_ENTITLEMENTS = "macOS/DunduMac.entitlements";
 				CODE_SIGN_STYLE = Automatic;

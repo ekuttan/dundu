@@ -54,6 +54,7 @@ struct ProfileContextView: View {
                 Text("Stays on this device. Never synced, never uploaded.")
             }
         }
+        .dunduFormBackground()
         .navigationTitle("Profile Context")
         .onAppear { profile = store.load() }
     }

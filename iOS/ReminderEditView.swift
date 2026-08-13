@@ -13,6 +13,8 @@ struct ReminderEditView: View {
 
     /// Nil means creating a new reminder.
     let existing: ReminderItem?
+    /// Which list a brand-new reminder lands in. Ignored when editing.
+    var preferredListID: UUID?
 
     @State private var title = ""
     @State private var notes = ""
@@ -83,6 +85,7 @@ struct ReminderEditView: View {
                     }
                 }
             }
+            .dunduFormBackground()
             .navigationTitle(existing == nil ? "New Reminder" : "Edit Reminder")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -105,7 +108,9 @@ struct ReminderEditView: View {
 
     private func load() {
         guard let existing else {
-            listID = (try? context.defaultList())?.id
+            // A new reminder started from inside a list belongs to that list,
+            // not to the default one.
+            listID = preferredListID ?? (try? context.defaultList())?.id
             return
         }
         title = existing.title

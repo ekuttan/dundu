@@ -62,6 +62,7 @@ struct GoogleAccountsView: View {
                 Text("Sign-in happens on google.com; Dundu only ever holds the resulting token, in the Keychain. In testing mode Google expires sessions every 7 days.")
             }
         }
+        .dunduFormBackground()
         .navigationTitle("Google Calendar")
     }
 

@@ -92,6 +92,7 @@ struct LocationPickerView: View {
             .overlay {
                 if isSearching { ProgressView() }
             }
+            .dunduFormBackground()
             .navigationTitle("Location Alert")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -49,6 +49,7 @@ struct VoiceCaptureView: View {
                     reviewScreen
                 }
             }
+            .dunduFormBackground()
             .navigationTitle("Voice Capture")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

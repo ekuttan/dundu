@@ -79,6 +79,7 @@ struct AppleRemindersView: View {
                 }
             }
         }
+        .dunduFormBackground()
         .navigationTitle("Apple Reminders")
         .overlay {
             if isLoading { ProgressView() }

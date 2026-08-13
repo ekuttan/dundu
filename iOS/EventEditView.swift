@@ -90,6 +90,7 @@ struct EventEditView: View {
                     }
                 }
             }
+            .dunduFormBackground()
             .navigationTitle("Edit Event")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
