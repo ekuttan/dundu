@@ -28,7 +28,10 @@ struct TimelineEntry: Identifiable, Equatable {
 /// real times, and a live NOW rule. Everything else on Today hangs off this.
 struct DayTimeline: View {
     let entries: [TimelineEntry]
+    /// The day being shown, and the current moment when that day is today.
     let now: Date
+    /// Off on any other day — a NOW rule on Thursday's page is a lie.
+    var isToday = true
     var onTap: (TimelineEntry) -> Void
     var onToggle: (TimelineEntry) -> Void
 
@@ -61,12 +64,14 @@ struct DayTimeline: View {
                         if entries.isEmpty {
                             // An empty day should say so once, next to the
                             // moment it is empty at — not fill the strip.
-                            Text("Nothing scheduled")
+                            Text(isToday ? "Nothing scheduled" : "Nothing this day")
                                 .font(Tokens.Typo.label)
                                 .foregroundStyle(Tokens.Colors.quiet)
                                 .offset(x: railWidth + Tokens.Spacing.sm, y: y(for: now) + 14)
                         }
-                        nowRule(width: geo.size.width)
+                        if isToday {
+                            nowRule(width: geo.size.width)
+                        }
                         // Scroll target: parks the current moment near the
                         // bottom of the viewport, the way the reference reads.
                         Color.clear

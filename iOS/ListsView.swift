@@ -28,26 +28,25 @@ struct ListsView: View {
     @State private var editingReminder: ReminderItem?
     @State private var showingNew = false
     @State private var showingCompleted = false
+    @State private var showingVoiceCapture = false
+    /// The list a dragged reminder is currently hovering over.
+    @State private var dropTargetID: UUID?
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                ScreenHeader(glyph: "checklist", title: "Reminders",
+                ScreenHeader(glyph: "hand.wave", title: Greeting.now(),
                              subtitle: countLabel) {
-                    HStack(spacing: Tokens.Spacing.md) {
-                        Button {
+                    HStack(spacing: Tokens.Spacing.sm) {
+                        headerButton(searching ? "xmark" : "magnifyingglass") {
                             withAnimation(Tokens.Anim.content) {
                                 searching.toggle()
                                 if !searching { searchText = "" }
                             }
-                        } label: {
-                            Image(systemName: searching ? "xmark" : "magnifyingglass")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(Tokens.Colors.ink)
-                                .frame(width: 32, height: 32)
                         }
-                        .buttonStyle(PressableStyle())
-                        RoundAccentButton(glyph: "plus") { showingNew = true }
+                        // Voice capture belongs on the screen you open into,
+                        // not one tab away on Today.
+                        headerButton("mic.fill") { showingVoiceCapture = true }
                     }
                 }
 
@@ -59,42 +58,55 @@ struct ListsView: View {
                     filterRow
                 }
 
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        if visibleReminders.isEmpty {
-                            QuietEmptyState(
-                                glyph: searchText.isEmpty ? "checkmark.circle" : "magnifyingglass",
-                                title: searchText.isEmpty ? "All clear" : "Nothing matches",
-                                message: searchText.isEmpty && reminders.isEmpty
-                                    ? "Reminders appear after the first sync with Apple Reminders."
-                                    : nil
-                            )
-                            .padding(.top, Tokens.Spacing.xxl)
-                        }
+                // A real List, not a LazyVStack: `.swipeActions` is inert
+                // outside one, and a hand-rolled drag gesture would forfeit
+                // full-swipe, haptics and the system's own spring.
+                List {
+                    if visibleReminders.isEmpty {
+                        QuietEmptyState(
+                            glyph: searchText.isEmpty ? "checkmark.circle" : "magnifyingglass",
+                            title: searchText.isEmpty ? "All clear" : "Nothing matches",
+                            message: searchText.isEmpty && reminders.isEmpty
+                                ? "Reminders appear after the first sync with Apple Reminders."
+                                : nil
+                        )
+                        .padding(.top, Tokens.Spacing.xl)
+                        .plainRow()
+                    }
 
-                        ForEach(groups, id: \.list?.id) { group in
+                    ForEach(groups, id: \.list?.id) { group in
+                        Section {
+                            ForEach(group.items) { reminder in
+                                ReminderRow(
+                                    reminder: reminder,
+                                    lists: lists,
+                                    onTap: { editingReminder = reminder },
+                                    onMove: { move(reminder, to: $0) },
+                                    onDelete: { delete(reminder) }
+                                )
+                                .plainRow(separator: true)
+                                .draggable(reminder.id.uuidString) {
+                                    Text(reminder.title)
+                                        .font(Tokens.Typo.blockTitle)
+                                        .padding(Tokens.Spacing.sm)
+                                        .background(Tokens.Colors.surface)
+                                }
+                            }
+                        } header: {
                             if selectedListID == nil, let list = group.list {
                                 groupHeader(list, count: group.items.count)
+                                    .plainRow()
                             }
-                            ForEach(group.items) { reminder in
-                                ReminderRow(reminder: reminder) { editingReminder = reminder }
-                                    .contextMenu {
-                                        Button("Delete", systemImage: "trash", role: .destructive) {
-                                            delete(reminder)
-                                        }
-                                    }
-                                Divider()
-                                    .overlay(Tokens.Colors.hairline)
-                                    .padding(.leading, 46)
-                            }
-                        }
-
-                        if !completed.isEmpty {
-                            completedSection
                         }
                     }
-                    .padding(.bottom, Tokens.Spacing.xl)
+
+                    if !completed.isEmpty {
+                        completedSection
+                    }
                 }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                .environment(\.defaultMinListRowHeight, 1)
             }
             .background(Tokens.Colors.paper)
             .toolbar(.hidden, for: .navigationBar)
@@ -102,7 +114,21 @@ struct ListsView: View {
             .sheet(isPresented: $showingNew) {
                 ReminderEditView(existing: nil, preferredListID: selectedListID)
             }
+            .sheet(isPresented: $showingVoiceCapture) { VoiceCaptureView() }
         }
+    }
+
+    /// 40pt of hit area with a visible edge. The bare glyph read as
+    /// decoration and was too small to aim at.
+    private func headerButton(_ glyph: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: glyph)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Tokens.Colors.ink)
+                .frame(width: 40, height: 40)
+                .background(Circle().stroke(Tokens.Colors.hairline, lineWidth: 1))
+        }
+        .buttonStyle(PressableStyle())
     }
 
     private var searchField: some View {
@@ -225,6 +251,26 @@ struct ListsView: View {
     }
 
     private func groupHeader(_ list: ReminderList, count: Int) -> some View {
+        header(list, count: count)
+            .background {
+                RoundedRectangle(cornerRadius: Tokens.Radius.chip, style: .continuous)
+                    .fill(dropTargetID == list.id
+                          ? Tokens.Colors.blockFill(Tokens.Colors.accent) : .clear)
+                    .padding(.horizontal, Tokens.Spacing.md)
+            }
+            .dropDestination(for: String.self) { ids, _ in
+                let moved = ids.compactMap(UUID.init(uuidString:))
+                    .compactMap { id in reminders.first { $0.id == id } }
+                for reminder in moved { move(reminder, to: list) }
+                return !moved.isEmpty
+            } isTargeted: { targeted in
+                withAnimation(Tokens.Anim.content) {
+                    dropTargetID = targeted ? list.id : nil
+                }
+            }
+    }
+
+    private func header(_ list: ReminderList, count: Int) -> some View {
         HStack(spacing: Tokens.Spacing.sm) {
             Circle()
                 .fill(Color(hex: list.colorHex) ?? Tokens.Colors.quiet)
@@ -247,35 +293,51 @@ struct ListsView: View {
 
     @ViewBuilder
     private var completedSection: some View {
-        Button {
-            withAnimation(Tokens.Anim.content) { showingCompleted.toggle() }
-        } label: {
-            HStack(spacing: Tokens.Spacing.sm) {
-                Image(systemName: showingCompleted ? "chevron.down" : "chevron.right")
-                    .font(.system(size: 10, weight: .bold))
-                Text("Completed")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                Text("\(completed.count)")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .monospacedDigit()
-                Spacer()
+        Section {
+            if showingCompleted {
+                ForEach(completed) { reminder in
+                    ReminderRow(reminder: reminder, lists: lists,
+                                onTap: { editingReminder = reminder },
+                                onMove: { move(reminder, to: $0) },
+                                onDelete: { delete(reminder) })
+                        .plainRow(separator: true)
+                }
             }
-            .foregroundStyle(Tokens.Colors.quiet)
-            .padding(.horizontal, Tokens.Spacing.xl)
-            .padding(.top, Tokens.Spacing.xl)
-            .padding(.bottom, Tokens.Spacing.sm)
-            .contentShape(Rectangle())
+        } header: {
+            Button {
+                withAnimation(Tokens.Anim.content) { showingCompleted.toggle() }
+            } label: {
+                HStack(spacing: Tokens.Spacing.sm) {
+                    Image(systemName: showingCompleted ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 10, weight: .bold))
+                    Text("Completed")
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    Text("\(completed.count)")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .monospacedDigit()
+                    Spacer()
+                }
+                .foregroundStyle(Tokens.Colors.quiet)
+                .padding(.horizontal, Tokens.Spacing.xl)
+                .padding(.top, Tokens.Spacing.lg)
+                .padding(.bottom, Tokens.Spacing.sm)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .plainRow()
         }
-        .buttonStyle(.plain)
+    }
 
-        if showingCompleted {
-            ForEach(completed) { reminder in
-                ReminderRow(reminder: reminder) { editingReminder = reminder }
-                Divider()
-                    .overlay(Tokens.Colors.hairline)
-                    .padding(.leading, 46)
-            }
+    /// Reassigns the list and lets the normal sync pass carry it to Apple
+    /// Reminders, exactly as an edit through the sheet would.
+    private func move(_ reminder: ReminderItem, to list: ReminderList) {
+        guard reminder.listID != list.id else { return }
+        withAnimation(Tokens.Anim.content) {
+            reminder.listID = list.id
+            reminder.modifiedAt = Date()
         }
+        try? context.save()
+        Task { await ReminderSyncService.syncNow(context: context) }
     }
 
     private func delete(_ reminder: ReminderItem) {
@@ -285,12 +347,22 @@ struct ListsView: View {
     }
 }
 
-/// A reminder as a flat row: a check, the title, and — only when there is one
-/// — a due date. No fill, no card; the hairline under it is the whole frame.
+/// A reminder as a flat row: a check, the title, and — only when there is
+/// one — a due date. No fill; the hairline under it is the whole frame.
+///
+/// Tall enough to be a comfortable target, which matters more here than
+/// elsewhere: both swipe directions are live, so a short row makes it easy to
+/// start a swipe when you meant to tap.
 struct ReminderRow: View {
     @Environment(\.modelContext) private var context
     let reminder: ReminderItem
+    var lists: [ReminderList] = []
     let onTap: () -> Void
+    var onMove: (ReminderList) -> Void = { _ in }
+    var onDelete: () -> Void = {}
+
+    @State private var showingDatePicker = false
+    @State private var pickedDate = Date()
 
     private var isLate: Bool {
         guard let due = reminder.dueDate, !reminder.isCompleted else { return false }
@@ -306,19 +378,18 @@ struct ReminderRow: View {
 
     var body: some View {
         Button(action: onTap) {
-            HStack(alignment: .firstTextBaseline, spacing: Tokens.Spacing.md) {
+            HStack(alignment: .top, spacing: Tokens.Spacing.md) {
                 Button(action: toggle) {
                     Image(systemName: reminder.isCompleted ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 20, weight: .light))
+                        .font(.system(size: 22, weight: .light))
                         .foregroundStyle(
                             reminder.isCompleted ? Tokens.Colors.quiet
                                 : (isLate ? Tokens.Colors.overdue : Tokens.Colors.ink.opacity(0.35))
                         )
                 }
                 .buttonStyle(.plain)
-                .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 4 }
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: Tokens.Spacing.xs) {
                         if reminder.priority == .high && !reminder.isCompleted {
                             Text("!!")
@@ -339,26 +410,96 @@ struct ReminderRow: View {
                             .foregroundStyle(Tokens.Colors.quiet)
                             .lineLimit(1)
                     }
+                    if let detail {
+                        HStack(spacing: Tokens.Spacing.xs) {
+                            Text(detail)
+                            if reminder.locationAlarm != nil {
+                                Image(systemName: "mappin")
+                            }
+                        }
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(isLate ? Tokens.Colors.overdue : Tokens.Colors.quiet)
+                    }
                 }
 
                 Spacer(minLength: Tokens.Spacing.sm)
-
-                if let detail {
-                    Text(detail)
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(isLate ? Tokens.Colors.overdue : Tokens.Colors.quiet)
-                }
-                if reminder.locationAlarm != nil {
-                    Image(systemName: "mappin")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Tokens.Colors.quiet)
-                }
             }
             .padding(.horizontal, Tokens.Spacing.xl)
-            .padding(.vertical, Tokens.Spacing.md)
+            .padding(.vertical, Tokens.Spacing.md + 4)
+            .frame(minHeight: 62)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        // Right: the one action worth a thoughtless flick.
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            Button(action: toggle) {
+                Label(reminder.isCompleted ? "Reopen" : "Done", systemImage: "checkmark")
+            }
+            .tint(Tokens.Colors.hueDone)
+        }
+        // Left: rescheduling, filing, removing — everything that needs a beat
+        // of thought, with the rarer choices behind the menu.
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button {
+                snooze(to: Snooze.tomorrow())
+            } label: {
+                Label("Tomorrow", systemImage: "sun.horizon")
+            }
+            .tint(Tokens.Colors.hueTask)
+
+            Button {
+                snooze(to: Snooze.nextWeek())
+            } label: {
+                Label("Next week", systemImage: "calendar")
+            }
+            .tint(Tokens.Colors.hueTravel)
+
+            Button(role: .destructive, action: onDelete) {
+                Label("Delete", systemImage: "trash")
+            }
+        }
+        .contextMenu {
+            Button("Later today", systemImage: "clock") { snooze(to: Snooze.laterToday()) }
+            Button("Tomorrow", systemImage: "sun.horizon") { snooze(to: Snooze.tomorrow()) }
+            Button("This weekend", systemImage: "beach.umbrella") { snooze(to: Snooze.thisWeekend()) }
+            Button("Next week", systemImage: "calendar") { snooze(to: Snooze.nextWeek()) }
+            Button("Pick a date…", systemImage: "calendar.badge.clock") {
+                pickedDate = reminder.dueDate ?? Snooze.tomorrow()
+                showingDatePicker = true
+            }
+            if !lists.isEmpty {
+                Divider()
+                Menu("Move to", systemImage: "folder") {
+                    ForEach(lists) { list in
+                        Button(list.title) { onMove(list) }
+                            .disabled(list.id == reminder.listID)
+                    }
+                }
+            }
+            Divider()
+            Button("Delete", systemImage: "trash", role: .destructive, action: onDelete)
+        }
+        .sheet(isPresented: $showingDatePicker) {
+            NavigationStack {
+                DatePicker("Due", selection: $pickedDate)
+                    .datePickerStyle(.graphical)
+                    .padding(Tokens.Spacing.lg)
+                    .navigationTitle("Pick a date")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cancel") { showingDatePicker = false }
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Set") {
+                                snooze(to: pickedDate, withTime: true)
+                                showingDatePicker = false
+                            }
+                        }
+                    }
+            }
+            .presentationDetents([.medium, .large])
+        }
     }
 
     private func toggle() {
@@ -367,6 +508,55 @@ struct ReminderRow: View {
         }
         try? context.save()
         Task { await ReminderSyncService.syncNow(context: context) }
+    }
+
+    /// Moves the due date without touching anything else. An item with no due
+    /// date gains one — snoozing an undated reminder is how it gets scheduled.
+    private func snooze(to date: Date, withTime: Bool? = nil) {
+        withAnimation(Tokens.Anim.content) {
+            reminder.dueDate = date
+            reminder.hasTime = withTime ?? reminder.hasTime
+            reminder.modifiedAt = Date()
+        }
+        try? context.save()
+        Task { await ReminderSyncService.syncNow(context: context) }
+    }
+}
+
+/// Where the snooze presets land. Kept together so Today, the notch and this
+/// row can never disagree about what "tomorrow" means.
+enum Snooze {
+    static func laterToday(from now: Date = Date()) -> Date {
+        now.addingTimeInterval(3 * 3600)
+    }
+
+    /// Tomorrow at 9am — a date, not "24 hours from now".
+    static func tomorrow(from now: Date = Date()) -> Date {
+        let calendar = Calendar.current
+        let next = calendar.date(byAdding: .day, value: 1, to: now) ?? now
+        return calendar.date(bySettingHour: 9, minute: 0, second: 0, of: next) ?? next
+    }
+
+    /// The coming Saturday at 9am; if it is already the weekend, the next one.
+    static func thisWeekend(from now: Date = Date()) -> Date {
+        let calendar = Calendar.current
+        let saturday = calendar.nextDate(
+            after: now,
+            matching: DateComponents(hour: 9, weekday: 7),
+            matchingPolicy: .nextTime
+        )
+        return saturday ?? tomorrow(from: now)
+    }
+
+    /// The coming Monday at 9am.
+    static func nextWeek(from now: Date = Date()) -> Date {
+        let calendar = Calendar.current
+        let monday = calendar.nextDate(
+            after: now,
+            matching: DateComponents(hour: 9, weekday: 2),
+            matchingPolicy: .nextTime
+        )
+        return monday ?? tomorrow(from: now)
     }
 }
 

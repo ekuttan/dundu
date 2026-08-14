@@ -13,6 +13,7 @@ struct RootView: View {
     @Environment(\.scenePhase) private var scenePhase
     @AppStorage("hasOnboarded") private var hasOnboarded = false
     @State private var showOnboarding = false
+    @State private var showingQuickAdd = false
     /// Reminders opens first: it is the list you came to check, and Today is
     /// one tap away when you want the shape of the day instead.
     @State private var selectedTab: AppTab = .lists
@@ -43,7 +44,8 @@ struct RootView: View {
                     .init(tab: .today, glyph: "sun.max", title: "Today"),
                     .init(tab: .inbox, glyph: "tray", title: "Inbox", badge: pendingReviews.count),
                     .init(tab: .settings, glyph: "gearshape", title: "Settings"),
-                ]
+                ],
+                onCentre: { showingQuickAdd = true }
             )
         }
         .background(Tokens.Colors.paper)
@@ -55,6 +57,7 @@ struct RootView: View {
         .onAppear {
             showOnboarding = !hasOnboarded
         }
+        .sheet(isPresented: $showingQuickAdd) { ReminderEditView(existing: nil) }
         .sheet(isPresented: $showOnboarding, onDismiss: {
             Task { await ReminderSyncService.syncNow(context: context) }
         }) {
@@ -113,6 +116,7 @@ struct RootView: View {
 
 struct SettingsView: View {
     @Environment(\.modelContext) private var context
+    @State private var seedResult: InboxScenarios.Outcome?
 
     var body: some View {
         NavigationStack {
@@ -138,24 +142,18 @@ struct SettingsView: View {
                     .buttonStyle(PressableStyle())
 
                     sectionLabel("Testing")
-                    Button {
-                        InboxScenarios.seed(context: context)
+                    Menu {
+                        Button("Load Inbox test cases", systemImage: "flask") {
+                            seedResult = InboxScenarios.seed(context: context)
+                        }
+                        Button("Remove test cases", systemImage: "trash", role: .destructive) {
+                            seedResult = InboxScenarios.clear(context: context)
+                        }
                     } label: {
-                        SettingsRow(glyph: "flask", title: "Load Inbox test cases",
-                                    tint: Tokens.Colors.hueUrgent, showsChevron: false)
+                        SettingsRow(glyph: "flask", title: "Inbox test cases",
+                                    tint: Tokens.Colors.hueUrgent, showsChevron: true)
                     }
                     .buttonStyle(PressableStyle())
-                    Button {
-                        InboxScenarios.clear(context: context)
-                    } label: {
-                        SettingsRow(glyph: "trash", title: "Remove test cases",
-                                    tint: Tokens.Colors.quiet, showsChevron: false)
-                    }
-                    .buttonStyle(PressableStyle())
-                    Text("Seeds one reminder per Inbox question — confident and weak repairs, an overdue garble, a routing suggestion, both at once, and a location reminder. They are real reminders: accepting one renames it for real.")
-                        .font(.system(size: 11, weight: .regular, design: .rounded))
-                        .foregroundStyle(Tokens.Colors.quiet)
-                        .padding(.horizontal, Tokens.Spacing.xs)
                 }
                 .padding(.horizontal, Tokens.Spacing.xl)
                 .padding(.vertical, Tokens.Spacing.lg)
@@ -163,6 +161,17 @@ struct SettingsView: View {
             .background(Tokens.Colors.paper)
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
+            // The seeder used to swallow its own failures behind `try?`, so
+            // "nothing happened" and "it broke" looked identical.
+            .alert(
+                seedResult?.title ?? "",
+                isPresented: Binding(get: { seedResult != nil },
+                                     set: { if !$0 { seedResult = nil } })
+            ) {
+                Button("OK") { seedResult = nil }
+            } message: {
+                Text(seedResult?.message ?? "")
+            }
         }
     }
 

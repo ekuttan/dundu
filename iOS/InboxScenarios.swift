@@ -142,31 +142,76 @@ enum InboxScenarios {
         },
     ]
 
+    /// What happened, so the caller can say so. Every failure here used to
+    /// vanish into a `try?`, which made "it worked" and "it threw" look
+    /// identical from the outside — the reason seeding appeared to do nothing.
+    struct Outcome: Identifiable {
+        let id = UUID()
+        let title: String
+        let message: String
+    }
+
     /// Inserts every scenario. Safe to call twice — the previous batch is
     /// cleared first, so the Inbox never fills with duplicates.
-    static func seed(context: ModelContext) {
-        clear(context: context)
+    @discardableResult
+    static func seed(context: ModelContext) -> Outcome {
+        do {
+            let removed = try removeSeeded(context: context)
 
-        let lists = (try? context.fetch(
-            FetchDescriptor<ReminderList>(predicate: #Predicate { $0.tombstonedAt == nil })
-        )) ?? []
-        let defaultID = (try? context.defaultList())?.id
+            let lists = try context.fetch(
+                FetchDescriptor<ReminderList>(predicate: #Predicate { $0.tombstonedAt == nil })
+            )
+            // No lists means Apple Reminders has not synced yet. Seeding into
+            // nothing produces cards with no list to move between, so say so
+            // rather than quietly making half-useful ones.
+            guard let defaultList = try? context.defaultList() else {
+                return Outcome(
+                    title: "No lists yet",
+                    message: "Allow Apple Reminders access and let one sync finish, then try again — the routing cards need a list to move things between."
+                )
+            }
 
-        for scenario in all {
-            context.insert(scenario.build(defaultID, lists))
+            for scenario in all {
+                context.insert(scenario.build(defaultList.id, lists))
+            }
+            try context.save()
+
+            let note = removed > 0 ? " Replaced \(removed) from the last run." : ""
+            return Outcome(
+                title: "Loaded \(all.count) test cases",
+                message: "Open the Inbox to work through them.\(note) They are real reminders — accepting a fix renames it for real."
+            )
+        } catch {
+            return Outcome(title: "Couldn't seed", message: String(describing: error))
         }
-        try? context.save()
     }
 
     /// Hard-deletes the seeded items rather than tombstoning them: they were
     /// never real, so they have nothing to propagate to Apple Reminders.
-    static func clear(context: ModelContext) {
-        let seeded = (try? context.fetch(FetchDescriptor<ReminderItem>()))?
-            .filter { $0.url == marker } ?? []
+    @discardableResult
+    static func clear(context: ModelContext) -> Outcome {
+        do {
+            let removed = try removeSeeded(context: context)
+            return Outcome(
+                title: removed > 0 ? "Removed \(removed) test cases" : "Nothing to remove",
+                message: removed > 0
+                    ? "The Inbox is back to whatever Dundu genuinely wants to ask about."
+                    : "No seeded items were found."
+            )
+        } catch {
+            return Outcome(title: "Couldn't remove them", message: String(describing: error))
+        }
+    }
+
+    @discardableResult
+    private static func removeSeeded(context: ModelContext) throws -> Int {
+        let seeded = try context.fetch(FetchDescriptor<ReminderItem>())
+            .filter { $0.url == marker }
         for item in seeded {
             context.delete(item)
         }
-        try? context.save()
+        if !seeded.isEmpty { try context.save() }
+        return seeded.count
     }
 
     static func count(context: ModelContext) -> Int {

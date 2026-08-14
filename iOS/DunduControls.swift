@@ -256,35 +256,22 @@ struct DunduTabBar<Tab: Hashable>: View {
     }
 
     @Binding var selection: Tab
+    /// Split evenly either side of the centre button. Four reads best.
     let items: [Item]
+    /// The raised centre action — adding something, from any tab.
+    var centreGlyph = "plus"
+    var onCentre: () -> Void = {}
+
+    private var half: Int { (items.count + 1) / 2 }
 
     var body: some View {
         HStack(spacing: 0) {
-            ForEach(items) { item in
-                Button {
-                    selection = item.tab
-                } label: {
-                    VStack(spacing: 3) {
-                        ZStack(alignment: .topTrailing) {
-                            Image(systemName: item.glyph)
-                                .font(.system(size: 17, weight: selection == item.tab ? .semibold : .regular))
-                            if item.badge > 0 {
-                                Circle()
-                                    .fill(Tokens.Colors.accent)
-                                    .frame(width: 6, height: 6)
-                                    .offset(x: 5, y: -2)
-                            }
-                        }
-                        .frame(height: 20)
-                        Text(item.title)
-                            .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    }
-                    .foregroundStyle(selection == item.tab ? Tokens.Colors.ink : Tokens.Colors.quiet)
-                    .frame(maxWidth: .infinity)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
+            ForEach(items.prefix(half)) { tabButton($0) }
+            // Room for the raised button to sit in. Height is pinned:
+            // an unconstrained Color.clear is greedy and would stretch the
+            // whole bar to fill the screen.
+            Color.clear.frame(width: 72, height: 1)
+            ForEach(items.suffix(from: min(half, items.count))) { tabButton($0) }
         }
         .padding(.top, Tokens.Spacing.sm + 2)
         .background(alignment: .top) {
@@ -293,6 +280,65 @@ struct DunduTabBar<Tab: Hashable>: View {
                 .frame(height: 1)
         }
         .background(Tokens.Colors.paper)
+        // An overlay, not a stack member: the raised button hangs above the
+        // bar without adding its overhang to the bar's height, which would
+        // otherwise push the whole screen up by the offset.
+        .overlay(alignment: .top) {
+            Button(action: onCentre) {
+                Image(systemName: centreGlyph)
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 54, height: 54)
+                    .background(Circle().fill(Tokens.Colors.accentGradient))
+                    .background(
+                        Circle()
+                            .fill(Tokens.Colors.paper)
+                            .frame(width: 64, height: 64)
+                    )
+                    .shadow(color: Tokens.Colors.accent.opacity(0.3), radius: 8, y: 3)
+            }
+            .buttonStyle(PressableStyle())
+            .offset(y: -24)
+        }
+    }
+
+    private func tabButton(_ item: Item) -> some View {
+        Button {
+            selection = item.tab
+        } label: {
+            VStack(spacing: 3) {
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: item.glyph)
+                        .font(.system(size: 17, weight: selection == item.tab ? .semibold : .regular))
+                    if item.badge > 0 {
+                        Circle()
+                            .fill(Tokens.Colors.accent)
+                            .frame(width: 6, height: 6)
+                            .offset(x: 5, y: -2)
+                    }
+                }
+                .frame(height: 20)
+                Text(item.title)
+                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+            }
+            .foregroundStyle(selection == item.tab ? Tokens.Colors.ink : Tokens.Colors.quiet)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// A time-of-day greeting. The home screen says hello before it says work.
+enum Greeting {
+    static func now(_ date: Date = Date()) -> String {
+        switch Calendar.current.component(.hour, from: date) {
+        case 0..<5: "Still up?"
+        case 5..<12: "Good morning"
+        case 12..<17: "Good afternoon"
+        case 17..<22: "Good evening"
+        default: "Good night"
+        }
     }
 }
 
@@ -321,5 +367,18 @@ struct QuietEmptyState: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, Tokens.Spacing.xl)
+    }
+}
+
+extension View {
+    /// A List row that keeps none of List's decoration: no inset, no fill,
+    /// no separator unless asked for. Lets the rows look hand-built while
+    /// still getting swipe actions, which only exist inside a List.
+    func plainRow(separator: Bool = false) -> some View {
+        listRowInsets(EdgeInsets())
+            .listRowBackground(Color.clear)
+            .listRowSeparator(separator ? .visible : .hidden)
+            .listRowSeparatorTint(Tokens.Colors.hairline)
+            .alignmentGuide(.listRowSeparatorLeading) { _ in Tokens.Spacing.xl + 34 }
     }
 }

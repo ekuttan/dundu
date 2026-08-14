@@ -28,6 +28,8 @@ struct TodayView: View {
     @State private var showingNewSheet = false
     @State private var showingVoiceCapture = false
     @State private var showingAllUnscheduled = false
+    /// Days from today. The timeline, tray and clock all follow it.
+    @State private var dayOffset = 0
 
     var body: some View {
         // One clock drives the NOW rule and the big readout. Half a minute is
@@ -46,29 +48,81 @@ struct TodayView: View {
 
     private func content(now: Date) -> some View {
         VStack(spacing: 0) {
-            ScreenHeader(glyph: "calendar", title: Self.headerDate(now)) {
-                RoundAccentButton(
-                    glyph: inboxCount > 0 ? "tray.full.fill" : "person.fill",
-                    badge: inboxCount,
-                    action: onOpenInbox
-                )
-            }
+            dayHeader(now: now)
 
             deniedBanner
 
             DayTimeline(
                 entries: timelineEntries(now: now),
-                now: now,
+                now: shownDate(now: now),
+                isToday: isToday,
                 onTap: open,
                 onToggle: toggle
             )
             .frame(maxHeight: .infinity)
 
-            clock(now: now)
+            if isToday {
+                clock(now: now)
+            }
 
             tray
+        }
+        .padding(.bottom, Tokens.Spacing.md)
+    }
 
-            actions
+    /// Header doubles as the day pager: the date in the middle, a day either
+    /// side. Returning to today is a tap on the date itself.
+    private func dayHeader(now: Date) -> some View {
+        HStack(spacing: Tokens.Spacing.sm) {
+            pagerButton("chevron.left") { step(-1) }
+            Spacer(minLength: 0)
+            Button {
+                withAnimation(Tokens.Anim.content) { dayOffset = 0 }
+            } label: {
+                VStack(spacing: 1) {
+                    Text(Self.headerDate(shownDate(now: now)))
+                        .font(Tokens.Typo.screenTitle)
+                        .foregroundStyle(Tokens.Colors.ink)
+                    Text(Self.headerWeekday(shownDate(now: now), offset: dayOffset))
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(dayOffset == 0 ? Tokens.Colors.quiet : Tokens.Colors.accent)
+                }
+            }
+            .buttonStyle(PressableStyle())
+            Spacer(minLength: 0)
+            pagerButton("chevron.right") { step(1) }
+        }
+        .padding(.horizontal, Tokens.Spacing.xl)
+        .padding(.vertical, Tokens.Spacing.md)
+    }
+
+    private func pagerButton(_ glyph: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: glyph)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Tokens.Colors.ink)
+                .frame(width: 40, height: 40)
+                .background(Circle().stroke(Tokens.Colors.hairline, lineWidth: 1))
+        }
+        .buttonStyle(PressableStyle())
+    }
+
+    private func step(_ days: Int) {
+        withAnimation(Tokens.Anim.content) { dayOffset += days }
+    }
+
+    private var isToday: Bool { dayOffset == 0 }
+
+    private func shownDate(now: Date) -> Date {
+        Calendar.current.date(byAdding: .day, value: dayOffset, to: now) ?? now
+    }
+
+    private static func headerWeekday(_ date: Date, offset: Int) -> String {
+        switch offset {
+        case 0: "Today"
+        case 1: "Tomorrow"
+        case -1: "Yesterday"
+        default: date.formatted(.dateTime.weekday(.wide))
         }
     }
 
@@ -121,7 +175,8 @@ struct TodayView: View {
         let calendar = Calendar.current
         var entries: [TimelineEntry] = []
 
-        for event in events where calendar.isDateInToday(event.startAt) && !event.isAllDay {
+        let shown = shownDate(now: now)
+        for event in events where calendar.isDate(event.startAt, inSameDayAs: shown) && !event.isAllDay {
             entries.append(
                 TimelineEntry(
                     id: event.id,
@@ -140,7 +195,7 @@ struct TodayView: View {
         for reminder in reminders {
             guard let due = reminder.dueDate,
                   reminder.hasTime,
-                  calendar.isDateInToday(due) else { continue }
+                  calendar.isDate(due, inSameDayAs: shown) else { continue }
             entries.append(
                 TimelineEntry(
                     id: reminder.id,
@@ -300,27 +355,6 @@ struct TodayView: View {
     }
 
     // MARK: - Actions
-
-    private var actions: some View {
-        HStack(spacing: Tokens.Spacing.md) {
-            Button {
-                showingNewSheet = true
-            } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(Tokens.Colors.ink)
-                    .frame(width: 48, height: 48)
-                    .background(Circle().stroke(Tokens.Colors.hairline, lineWidth: 1))
-            }
-            .buttonStyle(PressableStyle())
-
-            PillButton(title: "Record", glyph: "mic.fill") {
-                showingVoiceCapture = true
-            }
-        }
-        .padding(.top, Tokens.Spacing.lg)
-        .padding(.bottom, Tokens.Spacing.sm)
-    }
 
     // MARK: - Denied state
 
