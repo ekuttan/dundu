@@ -80,7 +80,6 @@ struct AppleRemindersView: View {
             }
         }
         .dunduFormBackground()
-        .clearsFloatingBar()
         .navigationTitle("Apple Reminders")
         .overlay {
             if isLoading { ProgressView() }

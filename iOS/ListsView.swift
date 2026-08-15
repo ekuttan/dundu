@@ -7,9 +7,13 @@ import DunduKit
 /// Lists used to be the screen and reminders lived a tap inside them. That is
 /// backwards: the reminders are the content, the lists are just how they're
 /// filed. The filter row narrows to one list without hiding anything, and no
-/// row is tinted — colour here is a 6pt dot for the list and red text for
-/// something that is late, nothing more.
+/// row is tinted — the only colour on the screen is the selected filter chip
+/// and red text for something that is late.
 struct ListsView: View {
+    /// Settings is a sheet, opened from this screen's header — it isn't a
+    /// destination worth a quarter of the tab bar.
+    var onOpenSettings: () -> Void = {}
+
     @Environment(\.modelContext) private var context
 
     @Query(
@@ -34,14 +38,18 @@ struct ListsView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                // Search is the only chrome the header needs now: adding and
-                // recording live in the corner stack on the tab bar.
+                // Search and settings: the two things you reach for from the
+                // top of a screen. Adding and recording live in the corner
+                // stack on the tab bar instead.
                 ScreenHeader(title: Greeting.now(), subtitle: countLabel) {
-                    CircleButton(glyph: searching ? "xmark" : "magnifyingglass") {
-                        withAnimation(Tokens.Anim.content) {
-                            searching.toggle()
-                            if !searching { searchText = "" }
+                    HStack(spacing: Tokens.Spacing.sm) {
+                        CircleButton(glyph: searching ? "xmark" : "magnifyingglass") {
+                            withAnimation(Tokens.Anim.content) {
+                                searching.toggle()
+                                if !searching { searchText = "" }
+                            }
                         }
+                        CircleButton(glyph: "gearshape", action: onOpenSettings)
                     }
                 }
 

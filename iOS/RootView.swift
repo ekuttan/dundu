@@ -2,10 +2,12 @@ import SwiftUI
 import SwiftData
 import DunduKit
 
-/// M0 shell: the four surfaces exist as tabs, Today is a working list backed
-/// by SwiftData. The real screens land with M6 (UI) and M15 (Inbox).
+/// The three places you go. Settings is not one of them — it is a thing you
+/// visit occasionally to change something, not a destination you switch
+/// between, so it opens as a sheet from the Reminders header instead of
+/// spending a quarter of the bar.
 enum AppTab: Hashable {
-    case today, lists, inbox, settings
+    case today, lists, inbox
 }
 
 struct RootView: View {
@@ -17,6 +19,7 @@ struct RootView: View {
     /// Voice capture used to live in the Reminders header. It belongs with
     /// the other thing you *do*, in the corner stack, reachable from any tab.
     @State private var showingVoiceCapture = false
+    @State private var showingSettings = false
     /// Reminders opens first: it is the list you came to check, and Today is
     /// one tap away when you want the shape of the day instead.
     @State private var selectedTab: AppTab = .lists
@@ -31,15 +34,14 @@ struct RootView: View {
         // the screens run to the bottom edge and scroll beneath it. Each
         // scrolling screen keeps its last row clear with `clearsFloatingBar`.
         ZStack(alignment: .bottom) {
-            // All four stay alive so scroll position and in-progress edits
+            // All three stay alive so scroll position and in-progress edits
             // survive a tab switch, the way TabView used to give us for free.
             ZStack {
                 tab(.today) {
                     TodayView(inboxCount: pendingReviews.count) { selectedTab = .inbox }
                 }
-                tab(.lists) { ListsView() }
+                tab(.lists) { ListsView(onOpenSettings: { showingSettings = true }) }
                 tab(.inbox) { InboxView() }
-                tab(.settings) { SettingsView() }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -49,7 +51,6 @@ struct RootView: View {
                     .init(tab: .lists, glyph: "checklist", title: "Reminders"),
                     .init(tab: .today, glyph: "sun.max", title: "Today"),
                     .init(tab: .inbox, glyph: "tray", title: "Inbox", badge: pendingReviews.count),
-                    .init(tab: .settings, glyph: "gearshape", title: "Settings"),
                 ],
                 actions: [
                     .init(glyph: "mic.fill", title: "Record") { showingVoiceCapture = true },
@@ -68,6 +69,7 @@ struct RootView: View {
         }
         .sheet(isPresented: $showingQuickAdd) { ReminderEditView(existing: nil) }
         .sheet(isPresented: $showingVoiceCapture) { VoiceCaptureView() }
+        .sheet(isPresented: $showingSettings) { SettingsView() }
         .sheet(isPresented: $showOnboarding, onDismiss: {
             Task { await ReminderSyncService.syncNow(context: context) }
         }) {
@@ -124,14 +126,19 @@ struct RootView: View {
     }
 }
 
+/// Opened as a sheet from the Reminders header rather than living in the
+/// bar: you come here to change something and then leave.
 struct SettingsView: View {
     @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
     @State private var seedResult: InboxScenarios.Outcome?
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                ScreenHeader(title: "Settings")
+                ScreenHeader(title: "Settings") {
+                    CircleButton(glyph: "xmark") { dismiss() }
+                }
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: Tokens.Spacing.lg) {
@@ -173,9 +180,8 @@ struct SettingsView: View {
                         }
                     }
                     .padding(.horizontal, Tokens.Layout.gutter)
-                    .padding(.bottom, Tokens.Spacing.lg)
+                    .padding(.bottom, Tokens.Spacing.xxl)
                 }
-                .clearsFloatingBar()
             }
             .background(Tokens.Colors.ground)
             .toolbar(.hidden, for: .navigationBar)

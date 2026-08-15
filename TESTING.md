@@ -6,7 +6,8 @@ and what "working" looks like. Report anything off and it gets fixed.
 
 ## 1. Google Calendar (needs your sign-in — highest value)
 
-- [ ] **Sign in**: iPhone → Settings → Google Calendar → Add Google Account.
+- [ ] **Sign in**: iPhone → Reminders → gear (top right) → Google Calendar
+      → Add Google Account.
       Google's page loads (verified); completing sign-in should land you
       back in Dundu with your calendars listed. If Google shows
       "access_denied", your address isn't in the OAuth test users list in
@@ -41,10 +42,13 @@ and what "working" looks like. Report anything off and it gets fixed.
 
 ## 3b. iPhone shell (after the design pass)
 
-- [ ] Tab bar: four destinations in the floating pill, with ＋ and the mic
+- [ ] Tab bar: three destinations in the floating pill, with ＋ and the mic
       stacked in the right-hand corner column. Both reachable from every
       tab; the pill and the stack stay clear of the last row on every
-      screen (scroll Reminders, Inbox and Settings to the bottom to check).
+      screen (scroll Reminders and Inbox to the bottom to check).
+- [ ] Settings is off the bar: the gear in the Reminders header opens it as
+      a sheet, ✕ closes it, and everything under it (Apple Reminders,
+      Google Calendar, Profile context) pushes and pops inside that sheet.
 - [ ] Reminders: each item is its own white card on the grey ground, list
       headings and filter chips carry no colour dots, and the selected
       filter chip picks up its list's colour.
@@ -53,7 +57,7 @@ and what "working" looks like. Report anything off and it gets fixed.
 
 ## 4. Intelligence (fill Profile Context first)
 
-- [ ] Settings → Profile context: add your businesses, aliases, people
+- [ ] Reminders → gear → Profile context: add your businesses, aliases, people
       (Contacts picker), keywords, and map each to a calendar role.
 - [ ] Dictate a reminder to Siri with a name it garbles → Inbox card with
       the proposed fix; accepting writes the fix back to Apple Reminders.

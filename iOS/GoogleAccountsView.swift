@@ -63,7 +63,6 @@ struct GoogleAccountsView: View {
             }
         }
         .dunduFormBackground()
-        .clearsFloatingBar()
         .navigationTitle("Google Calendar")
     }
 
