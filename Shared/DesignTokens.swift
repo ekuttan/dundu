@@ -4,24 +4,53 @@ import SwiftUI
 /// DunduKit never knows which platform it runs on, and views never define
 /// their own magic numbers.
 ///
-/// The language: paper-white ground, almost no chrome, content carried by
-/// soft tinted blocks and one piece of hard black type. Anything that isn't
-/// content — separators, rails, labels — recedes to a hairline.
+/// The language follows the current Apple system apps: a soft grey ground,
+/// content carried by flat white cards with generous corners, type doing the
+/// hierarchy (one big title per screen), and chrome that floats over the
+/// content instead of framing it. Borders are the exception, not the rule —
+/// a card is told apart from the ground by its fill, not by an outline.
 enum Tokens {
     enum Spacing {
         static let xs: CGFloat = 4
         static let sm: CGFloat = 8
         static let md: CGFloat = 12
         static let lg: CGFloat = 16
-        static let xl: CGFloat = 24
+        static let xl: CGFloat = 20
         static let xxl: CGFloat = 32
     }
 
     enum Radius {
-        static let block: CGFloat = 14
-        static let card: CGFloat = 16
-        static let chip: CGFloat = 12
-        static let pill: CGFloat = 22
+        static let chip: CGFloat = 14
+        static let block: CGFloat = 18
+        static let card: CGFloat = 22
+        static let sheet: CGFloat = 28
+    }
+
+    enum Layout {
+        /// Screen margin. Everything full-width lines up on this.
+        static let gutter: CGFloat = 20
+        /// Minimum comfortable tap target.
+        static let control: CGFloat = 44
+        /// Round chrome buttons in a header.
+        static let headerButton: CGFloat = 38
+        /// How much room the floating tab bar needs at the bottom of a
+        /// scroll view so the last row clears it — the bar itself, plus the
+        /// taller action stack beside it, plus a gap.
+        static let barInset: CGFloat = 124
+    }
+
+    /// Shadows exist only under things that genuinely float — the tab bar,
+    /// the accessory stack, the one accent button. Cards sit flat on the
+    /// ground and are read by their fill.
+    enum Shadow {
+        struct Spec {
+            var color: Color
+            var radius: CGFloat
+            var y: CGFloat
+        }
+
+        static let floating = Spec(color: .black.opacity(0.14), radius: 18, y: 6)
+        static let accent = Spec(color: .black.opacity(0.18), radius: 10, y: 4)
     }
 
     enum Anim {
@@ -31,19 +60,31 @@ enum Tokens {
         static let reduceMotionFallback = Animation.easeInOut(duration: 0.15)
         /// Blocks appearing, the tray reshuffling, a check landing.
         static let content = Animation.spring(response: 0.32, dampingFraction: 0.82)
+        /// Tab changes and other chrome: quicker, no bounce.
+        static let chrome = Animation.spring(response: 0.28, dampingFraction: 0.9)
     }
 
     /// Type scale. Everything is SF Rounded — the reference's warmth comes
-    /// mostly from this one choice.
+    /// mostly from this one choice. The screen title is deliberately much
+    /// larger than anything under it: on these screens the title is the only
+    /// piece of navigation there is.
     enum Typo {
         static func clock(_ size: CGFloat = 64) -> Font {
             .system(size: size, weight: .bold, design: .rounded)
         }
         static let clockSuffix = Font.system(size: 22, weight: .semibold, design: .rounded)
+        /// The one big title at the top of a screen.
+        static let largeTitle = Font.system(size: 34, weight: .bold, design: .rounded)
+        /// Titles inside sheets and other secondary surfaces.
         static let screenTitle = Font.system(size: 20, weight: .bold, design: .rounded)
+        /// The coloured heading line of a card.
+        static let cardTitle = Font.system(size: 17, weight: .semibold, design: .rounded)
+        /// A section heading over a group of cards.
+        static let sectionTitle = Font.system(size: 15, weight: .semibold, design: .rounded)
         static let blockTitle = Font.system(size: 13, weight: .semibold, design: .rounded)
-        static let body = Font.system(size: 15, weight: .medium, design: .rounded)
+        static let body = Font.system(size: 16, weight: .medium, design: .rounded)
         static let label = Font.system(size: 13, weight: .medium, design: .rounded)
+        static let caption = Font.system(size: 12, weight: .medium, design: .rounded)
         /// Hour rail: small, wide-tracked, deliberately quiet.
         static let rail = Font.system(size: 10, weight: .semibold, design: .rounded)
     }
@@ -53,25 +94,39 @@ enum Tokens {
         static let dueSoon = Color.orange
         static let meeting = Color.blue
 
-        /// The ground everything sits on.
-        static let paper = Color.adaptive(light: .white, dark: Color(white: 0.07))
-        /// Raised surfaces — cards, the tray, sheets.
-        static let surface = Color.adaptive(light: Color(white: 0.98), dark: Color(white: 0.12))
-        /// Hard black type: the clock, the NOW line, the primary pill.
-        static let ink = Color.adaptive(light: Color(white: 0.06), dark: Color(white: 0.95))
-        /// Hour labels, captions, anything supporting.
-        static let quiet = Color.adaptive(light: Color(white: 0.62), dark: Color(white: 0.55))
-        /// Gridlines and separators — visible, never assertive.
-        static let hairline = Color.adaptive(light: Color(white: 0.91), dark: Color(white: 0.22))
+        /// The ground everything sits on — soft grey in light, near-black in
+        /// dark, so white cards read as raised without a border.
+        static let ground = Color.adaptive(
+            light: Color(red: 0.949, green: 0.949, blue: 0.965),
+            dark: Color(white: 0.06)
+        )
+        /// A card: the surface content actually lives on.
+        static let card = Color.adaptive(light: .white, dark: Color(white: 0.13))
+        /// A quieter fill used *inside* a card, and for chrome buttons —
+        /// chips, wells, the unselected segment of a filter row.
+        static let fill = Color.adaptive(light: Color(white: 0.925), dark: Color(white: 0.20))
 
-        /// Soft tinted block, the reference's signature. Derived from a base
-        /// hue so Google calendar colours keep their identity while all
-        /// landing in the same register.
+        /// Older names, kept so the Mac surfaces and any stray call site keep
+        /// meaning what they meant: `paper` is a card, `surface` is a fill.
+        static let paper = card
+        static let surface = fill
+
+        /// Primary type: the title, a reminder's name, the clock.
+        static let ink = Color.adaptive(light: Color(white: 0.06), dark: Color(white: 0.96))
+        /// Supporting type: dates, counts, captions.
+        static let quiet = Color.adaptive(light: Color(white: 0.47), dark: Color(white: 0.62))
+        /// Third rank: chevrons, empty-state glyphs, placeholder marks.
+        static let faint = Color.adaptive(light: Color(white: 0.72), dark: Color(white: 0.42))
+        /// The rare separator that still earns its place.
+        static let hairline = Color.adaptive(light: Color(white: 0.89), dark: Color(white: 0.24))
+
+        /// Soft tinted block, used where colour *is* the information — a
+        /// meeting on the timeline, a tinted glyph well.
         static func blockFill(_ base: Color) -> Color {
-            base.opacity(0.13)
+            base.opacity(0.14)
         }
         static func blockStroke(_ base: Color) -> Color {
-            base.opacity(0.28)
+            base.opacity(0.24)
         }
 
         /// Lifted from the app icon's gradient so the one warm accent in the
@@ -84,12 +139,40 @@ enum Tokens {
             endPoint: .bottomTrailing
         )
 
-        /// Category hues. Muted on purpose: the tint is 13% of this.
+        /// Category hues. Muted on purpose: the tint is 14% of this.
         static let hueMeeting = Color(red: 0.35, green: 0.40, blue: 0.92)
         static let hueTask = Color(red: 0.16, green: 0.55, blue: 0.95)
         static let hueTravel = Color(red: 0.55, green: 0.40, blue: 0.90)
         static let hueUrgent = Color(red: 0.95, green: 0.35, blue: 0.30)
         static let hueDone = Color(red: 0.20, green: 0.72, blue: 0.45)
+    }
+}
+
+extension View {
+    func dunduShadow(_ spec: Tokens.Shadow.Spec) -> some View {
+        shadow(color: spec.color, radius: spec.radius, y: spec.y)
+    }
+
+    /// A flat card on the ground: fill, big corners, no border. The single
+    /// surface treatment the whole app is built from.
+    func cardSurface(
+        _ fill: Color = Tokens.Colors.card,
+        radius: CGFloat = Tokens.Radius.card
+    ) -> some View {
+        background {
+            RoundedRectangle(cornerRadius: radius, style: .continuous)
+                .fill(fill)
+        }
+    }
+
+    /// Chrome that hovers over content — the tab bar and its accessories.
+    /// Material rather than a solid fill, so scrolling content shows through.
+    func floatingSurface<S: Shape>(_ shape: S) -> some View {
+        background(.regularMaterial, in: shape)
+            .overlay {
+                shape.stroke(Color.white.opacity(0.35), lineWidth: 0.5)
+            }
+            .dunduShadow(Tokens.Shadow.floating)
     }
 }
 

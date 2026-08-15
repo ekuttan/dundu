@@ -25,8 +25,6 @@ struct TodayView: View {
 
     @State private var editingReminder: ReminderItem?
     @State private var editingEvent: CalendarEvent?
-    @State private var showingNewSheet = false
-    @State private var showingVoiceCapture = false
     @State private var showingAllUnscheduled = false
     /// Days from today. The timeline, tray and clock all follow it.
     @State private var dayOffset = 0
@@ -38,11 +36,9 @@ struct TodayView: View {
         TimelineView(.periodic(from: .now, by: 30)) { context in
             content(now: context.date)
         }
-        .background(Tokens.Colors.paper)
+        .background(Tokens.Colors.ground)
         .sheet(item: $editingReminder) { ReminderEditView(existing: $0) }
         .sheet(item: $editingEvent) { EventEditView(event: $0) }
-        .sheet(isPresented: $showingNewSheet) { ReminderEditView(existing: nil) }
-        .sheet(isPresented: $showingVoiceCapture) { VoiceCaptureView() }
         .sheet(isPresented: $showingAllUnscheduled) { unscheduledSheet }
     }
 
@@ -67,44 +63,41 @@ struct TodayView: View {
 
             tray
         }
-        .padding(.bottom, Tokens.Spacing.md)
+        // Clears the floating bar: this screen doesn't scroll as a whole, so
+        // the tray has to stop above it.
+        .padding(.bottom, Tokens.Layout.barInset - Tokens.Spacing.lg)
     }
 
-    /// Header doubles as the day pager: the date in the middle, a day either
-    /// side. Returning to today is a tap on the date itself.
+    /// Header doubles as the day pager: the day in large type on the left,
+    /// a step either way on the right, and a way back to today that only
+    /// appears once you have left it.
     private func dayHeader(now: Date) -> some View {
-        HStack(spacing: Tokens.Spacing.sm) {
-            pagerButton("chevron.left") { step(-1) }
-            Spacer(minLength: 0)
-            Button {
-                withAnimation(Tokens.Anim.content) { dayOffset = 0 }
-            } label: {
-                VStack(spacing: 1) {
-                    Text(Self.headerDate(shownDate(now: now)))
-                        .font(Tokens.Typo.screenTitle)
-                        .foregroundStyle(Tokens.Colors.ink)
-                    Text(Self.headerWeekday(shownDate(now: now), offset: dayOffset))
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(dayOffset == 0 ? Tokens.Colors.quiet : Tokens.Colors.accent)
+        ScreenHeader(
+            title: Self.headerWeekday(shownDate(now: now), offset: dayOffset),
+            subtitle: Self.headerDate(shownDate(now: now))
+        ) {
+            HStack(spacing: Tokens.Spacing.sm) {
+                // Only offered when it does something — on today it would be
+                // a button that visibly changes nothing.
+                if dayOffset != 0 {
+                    Button {
+                        withAnimation(Tokens.Anim.content) { dayOffset = 0 }
+                    } label: {
+                        Text("Today")
+                            .font(Tokens.Typo.label)
+                            .foregroundStyle(Tokens.Colors.accent)
+                            .padding(.horizontal, Tokens.Spacing.md)
+                            .padding(.vertical, 9)
+                            .background {
+                                Capsule().fill(Tokens.Colors.blockFill(Tokens.Colors.accent))
+                            }
+                    }
+                    .buttonStyle(PressableStyle())
                 }
+                CircleButton(glyph: "chevron.left") { step(-1) }
+                CircleButton(glyph: "chevron.right") { step(1) }
             }
-            .buttonStyle(PressableStyle())
-            Spacer(minLength: 0)
-            pagerButton("chevron.right") { step(1) }
         }
-        .padding(.horizontal, Tokens.Spacing.xl)
-        .padding(.vertical, Tokens.Spacing.md)
-    }
-
-    private func pagerButton(_ glyph: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: glyph)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Tokens.Colors.ink)
-                .frame(width: 40, height: 40)
-                .background(Circle().stroke(Tokens.Colors.hairline, lineWidth: 1))
-        }
-        .buttonStyle(PressableStyle())
     }
 
     private func step(_ days: Int) {
@@ -126,8 +119,9 @@ struct TodayView: View {
         }
     }
 
+    /// Under the big "Today" the full date has room to spell itself out.
     private static func headerDate(_ now: Date) -> String {
-        now.formatted(.dateTime.month(.abbreviated).day())
+        now.formatted(.dateTime.weekday(.wide).day().month(.wide))
     }
 
     /// `.dateTime.hour(.defaultDigits)` pads to "04:15"; the reference reads
@@ -306,17 +300,15 @@ struct TodayView: View {
                             Text("+\(items.count - trayVisibleLimit)")
                                 .font(Tokens.Typo.blockTitle)
                                 .foregroundStyle(Tokens.Colors.quiet)
-                                .padding(.horizontal, Tokens.Spacing.md)
-                                .padding(.vertical, Tokens.Spacing.sm + 2)
-                                .background {
-                                    RoundedRectangle(cornerRadius: Tokens.Radius.chip, style: .continuous)
-                                        .stroke(Tokens.Colors.hairline, lineWidth: 1)
-                                }
+                                .padding(.horizontal, Tokens.Spacing.lg)
+                                .padding(.vertical, Tokens.Spacing.md)
+                                .cardSurface(radius: Tokens.Radius.block)
                         }
                         .buttonStyle(PressableStyle())
                     }
                 }
-                .padding(.horizontal, Tokens.Spacing.xl)
+                .padding(.horizontal, Tokens.Layout.gutter)
+                .padding(.vertical, Tokens.Spacing.xs)
             }
             .padding(.top, Tokens.Spacing.lg)
         }
@@ -345,9 +337,9 @@ struct TodayView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                 }
-                .padding(Tokens.Spacing.xl)
+                .padding(Tokens.Layout.gutter)
             }
-            .background(Tokens.Colors.paper)
+            .background(Tokens.Colors.ground)
             .navigationTitle("Unscheduled")
             .navigationBarTitleDisplayMode(.inline)
         }
@@ -370,19 +362,21 @@ struct TodayView: View {
             } label: {
                 HStack(spacing: Tokens.Spacing.sm) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 13, weight: .semibold))
                     Text("Apple Reminders sync is off — tap to allow")
                         .font(Tokens.Typo.label)
                     Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
                 }
                 .foregroundStyle(Tokens.Colors.dueSoon)
-                .padding(.horizontal, Tokens.Spacing.md)
-                .padding(.vertical, Tokens.Spacing.sm)
-                .background {
-                    RoundedRectangle(cornerRadius: Tokens.Radius.chip, style: .continuous)
-                        .fill(Tokens.Colors.blockFill(Tokens.Colors.dueSoon))
-                }
-                .padding(.horizontal, Tokens.Spacing.xl)
+                .padding(.horizontal, Tokens.Spacing.lg)
+                .padding(.vertical, Tokens.Spacing.md)
+                .cardSurface(
+                    Tokens.Colors.blockFill(Tokens.Colors.dueSoon),
+                    radius: Tokens.Radius.block
+                )
+                .padding(.horizontal, Tokens.Layout.gutter)
             }
             .buttonStyle(PressableStyle())
         }

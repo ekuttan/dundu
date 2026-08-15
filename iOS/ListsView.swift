@@ -28,25 +28,20 @@ struct ListsView: View {
     @State private var editingReminder: ReminderItem?
     @State private var showingNew = false
     @State private var showingCompleted = false
-    @State private var showingVoiceCapture = false
     /// The list a dragged reminder is currently hovering over.
     @State private var dropTargetID: UUID?
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                ScreenHeader(glyph: "hand.wave", title: Greeting.now(),
-                             subtitle: countLabel) {
-                    HStack(spacing: Tokens.Spacing.sm) {
-                        headerButton(searching ? "xmark" : "magnifyingglass") {
-                            withAnimation(Tokens.Anim.content) {
-                                searching.toggle()
-                                if !searching { searchText = "" }
-                            }
+                // Search is the only chrome the header needs now: adding and
+                // recording live in the corner stack on the tab bar.
+                ScreenHeader(title: Greeting.now(), subtitle: countLabel) {
+                    CircleButton(glyph: searching ? "xmark" : "magnifyingglass") {
+                        withAnimation(Tokens.Anim.content) {
+                            searching.toggle()
+                            if !searching { searchText = "" }
                         }
-                        // Voice capture belongs on the screen you open into,
-                        // not one tab away on Today.
-                        headerButton("mic.fill") { showingVoiceCapture = true }
                     }
                 }
 
@@ -84,18 +79,18 @@ struct ListsView: View {
                                     onMove: { move(reminder, to: $0) },
                                     onDelete: { delete(reminder) }
                                 )
-                                .plainRow(separator: true)
+                                .plainRow()
                                 .draggable(reminder.id.uuidString) {
                                     Text(reminder.title)
                                         .font(Tokens.Typo.blockTitle)
                                         .padding(Tokens.Spacing.sm)
-                                        .background(Tokens.Colors.surface)
+                                        .cardSurface(radius: Tokens.Radius.block)
                                 }
                             }
                         } header: {
                             if selectedListID == nil, let list = group.list {
                                 groupHeader(list, count: group.items.count)
-                                    .plainRow()
+                                    .plainRow(inset: false)
                             }
                         }
                     }
@@ -107,34 +102,23 @@ struct ListsView: View {
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
                 .environment(\.defaultMinListRowHeight, 1)
+                .clearsFloatingBar()
             }
-            .background(Tokens.Colors.paper)
+            .background(Tokens.Colors.ground)
             .toolbar(.hidden, for: .navigationBar)
             .sheet(item: $editingReminder) { ReminderEditView(existing: $0) }
             .sheet(isPresented: $showingNew) {
                 ReminderEditView(existing: nil, preferredListID: selectedListID)
             }
-            .sheet(isPresented: $showingVoiceCapture) { VoiceCaptureView() }
         }
     }
 
-    /// 40pt of hit area with a visible edge. The bare glyph read as
-    /// decoration and was too small to aim at.
-    private func headerButton(_ glyph: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: glyph)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(Tokens.Colors.ink)
-                .frame(width: 40, height: 40)
-                .background(Circle().stroke(Tokens.Colors.hairline, lineWidth: 1))
-        }
-        .buttonStyle(PressableStyle())
-    }
-
+    /// The system's search field, in the app's own materials: a soft filled
+    /// capsule rather than an outline.
     private var searchField: some View {
         HStack(spacing: Tokens.Spacing.sm) {
             Image(systemName: "magnifyingglass")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(Tokens.Colors.quiet)
             TextField("Search titles and notes", text: $searchText)
                 .font(Tokens.Typo.body)
@@ -142,62 +126,54 @@ struct ListsView: View {
                 .submitLabel(.search)
         }
         .padding(.horizontal, Tokens.Spacing.md)
-        .padding(.vertical, Tokens.Spacing.sm + 2)
-        .background {
-            RoundedRectangle(cornerRadius: Tokens.Radius.chip, style: .continuous)
-                .stroke(Tokens.Colors.hairline, lineWidth: 1)
-        }
-        .padding(.horizontal, Tokens.Spacing.xl)
+        .padding(.vertical, Tokens.Spacing.md)
+        .background { Capsule().fill(Tokens.Colors.fill) }
+        .padding(.horizontal, Tokens.Layout.gutter)
         .padding(.bottom, Tokens.Spacing.md)
         .onAppear { searchFocused = true }
     }
 
     // MARK: - Filter
 
+    /// A segmented row of soft capsules. The list's colour used to ride in
+    /// front of the name as a dot, which read as debris at this size — the
+    /// selected capsule now carries the colour itself, and the unselected
+    /// ones carry none at all.
     private var filterRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: Tokens.Spacing.sm) {
-                filterChip(title: "All", dot: nil, id: nil)
+                filterChip(title: "All", tint: nil, id: nil)
                 ForEach(lists) { list in
                     filterChip(
                         title: list.title,
-                        dot: Color(hex: list.colorHex) ?? Tokens.Colors.quiet,
+                        tint: Color(hex: list.colorHex),
                         id: list.id
                     )
                 }
             }
-            .padding(.horizontal, Tokens.Spacing.xl)
+            .padding(.horizontal, Tokens.Layout.gutter)
             .padding(.bottom, Tokens.Spacing.md)
         }
     }
 
-    private func filterChip(title: String, dot: Color?, id: UUID?) -> some View {
+    private func filterChip(title: String, tint: Color?, id: UUID?) -> some View {
         let isOn = selectedListID == id
+        let colour = tint ?? Tokens.Colors.ink
         return Button {
             withAnimation(Tokens.Anim.content) {
                 selectedListID = isOn ? nil : id
             }
         } label: {
-            HStack(spacing: 5) {
-                if let dot {
-                    Circle().fill(dot).frame(width: 6, height: 6)
+            Text(title)
+                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .foregroundStyle(isOn ? colour : Tokens.Colors.quiet)
+                .padding(.horizontal, Tokens.Spacing.md + 2)
+                .padding(.vertical, 8)
+                .background {
+                    Capsule().fill(
+                        isOn ? Tokens.Colors.blockFill(colour) : Tokens.Colors.fill
+                    )
                 }
-                Text(title)
-                    .font(Tokens.Typo.label)
-            }
-            .foregroundStyle(isOn ? Tokens.Colors.paper : Tokens.Colors.ink)
-            .padding(.horizontal, Tokens.Spacing.md)
-            .padding(.vertical, 6)
-            .background {
-                Capsule()
-                    .fill(isOn ? Tokens.Colors.ink : Color.clear)
-                    .overlay {
-                        Capsule().stroke(
-                            isOn ? Color.clear : Tokens.Colors.hairline,
-                            lineWidth: 1
-                        )
-                    }
-            }
         }
         .buttonStyle(PressableStyle())
     }
@@ -256,7 +232,7 @@ struct ListsView: View {
                 RoundedRectangle(cornerRadius: Tokens.Radius.chip, style: .continuous)
                     .fill(dropTargetID == list.id
                           ? Tokens.Colors.blockFill(Tokens.Colors.accent) : .clear)
-                    .padding(.horizontal, Tokens.Spacing.md)
+                    .padding(.horizontal, Tokens.Spacing.sm)
             }
             .dropDestination(for: String.self) { ids, _ in
                 let moved = ids.compactMap(UUID.init(uuidString:))
@@ -270,21 +246,21 @@ struct ListsView: View {
             }
     }
 
+    /// The list's name in plain type, with its count on the right. No dot:
+    /// the name is what identifies the list, and a 6pt disc of arbitrary
+    /// Reminders colour in front of every heading only added noise.
     private func header(_ list: ReminderList, count: Int) -> some View {
         HStack(spacing: Tokens.Spacing.sm) {
-            Circle()
-                .fill(Color(hex: list.colorHex) ?? Tokens.Colors.quiet)
-                .frame(width: 6, height: 6)
             Text(list.title)
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .foregroundStyle(Tokens.Colors.quiet)
+                .font(Tokens.Typo.sectionTitle)
+                .foregroundStyle(Tokens.Colors.ink)
             Spacer()
             Text("\(count)")
-                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .font(Tokens.Typo.caption)
                 .monospacedDigit()
-                .foregroundStyle(Tokens.Colors.quiet.opacity(0.7))
+                .foregroundStyle(Tokens.Colors.quiet)
         }
-        .padding(.horizontal, Tokens.Spacing.xl)
+        .padding(.horizontal, Tokens.Layout.gutter + Tokens.Spacing.xs)
         .padding(.top, Tokens.Spacing.lg)
         .padding(.bottom, Tokens.Spacing.sm)
     }
@@ -300,7 +276,7 @@ struct ListsView: View {
                                 onTap: { editingReminder = reminder },
                                 onMove: { move(reminder, to: $0) },
                                 onDelete: { delete(reminder) })
-                        .plainRow(separator: true)
+                        .plainRow()
                 }
             }
         } header: {
@@ -308,23 +284,25 @@ struct ListsView: View {
                 withAnimation(Tokens.Anim.content) { showingCompleted.toggle() }
             } label: {
                 HStack(spacing: Tokens.Spacing.sm) {
-                    Image(systemName: showingCompleted ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 10, weight: .bold))
                     Text("Completed")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .font(Tokens.Typo.sectionTitle)
+                        .foregroundStyle(Tokens.Colors.ink)
                     Text("\(completed.count)")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .font(Tokens.Typo.caption)
                         .monospacedDigit()
+                        .foregroundStyle(Tokens.Colors.quiet)
                     Spacer()
+                    Image(systemName: showingCompleted ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Tokens.Colors.faint)
                 }
-                .foregroundStyle(Tokens.Colors.quiet)
-                .padding(.horizontal, Tokens.Spacing.xl)
+                .padding(.horizontal, Tokens.Layout.gutter + Tokens.Spacing.xs)
                 .padding(.top, Tokens.Spacing.lg)
                 .padding(.bottom, Tokens.Spacing.sm)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .plainRow()
+            .plainRow(inset: false)
         }
     }
 
@@ -347,8 +325,10 @@ struct ListsView: View {
     }
 }
 
-/// A reminder as a flat row: a check, the title, and — only when there is
-/// one — a due date. No fill; the hairline under it is the whole frame.
+/// A reminder as its own card: a check, the title, and — only when there is
+/// one — a due date. Separators are gone; each item is a white block on the
+/// grey ground, which is what the current system apps do and what makes a
+/// half-swiped row read as a card being pulled aside.
 ///
 /// Tall enough to be a comfortable target, which matters more here than
 /// elsewhere: both swipe directions are live, so a short row makes it easy to
@@ -384,7 +364,7 @@ struct ReminderRow: View {
                         .font(.system(size: 22, weight: .light))
                         .foregroundStyle(
                             reminder.isCompleted ? Tokens.Colors.quiet
-                                : (isLate ? Tokens.Colors.overdue : Tokens.Colors.ink.opacity(0.35))
+                                : (isLate ? Tokens.Colors.overdue : Tokens.Colors.faint)
                         )
                 }
                 .buttonStyle(.plain)
@@ -393,7 +373,7 @@ struct ReminderRow: View {
                     HStack(spacing: Tokens.Spacing.xs) {
                         if reminder.priority == .high && !reminder.isCompleted {
                             Text("!!")
-                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .font(.system(size: 14, weight: .bold, design: .rounded))
                                 .foregroundStyle(Tokens.Colors.overdue)
                         }
                         Text(reminder.title)
@@ -406,7 +386,7 @@ struct ReminderRow: View {
                     }
                     if let notes = reminder.notes, !notes.isEmpty {
                         Text(notes)
-                            .font(.system(size: 12, weight: .regular, design: .rounded))
+                            .font(.system(size: 13, weight: .regular, design: .rounded))
                             .foregroundStyle(Tokens.Colors.quiet)
                             .lineLimit(1)
                     }
@@ -417,17 +397,18 @@ struct ReminderRow: View {
                                 Image(systemName: "mappin")
                             }
                         }
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .font(Tokens.Typo.caption)
                         .foregroundStyle(isLate ? Tokens.Colors.overdue : Tokens.Colors.quiet)
                     }
                 }
 
                 Spacer(minLength: Tokens.Spacing.sm)
             }
-            .padding(.horizontal, Tokens.Spacing.xl)
-            .padding(.vertical, Tokens.Spacing.md + 4)
+            .padding(.horizontal, Tokens.Spacing.lg)
+            .padding(.vertical, Tokens.Spacing.md + 2)
             .frame(minHeight: 62)
             .contentShape(Rectangle())
+            .cardSurface(radius: Tokens.Radius.block)
         }
         .buttonStyle(.plain)
         // Right: the one action worth a thoughtless flick.

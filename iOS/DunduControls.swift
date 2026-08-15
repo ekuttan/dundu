@@ -1,107 +1,151 @@
 import SwiftUI
 
 /// The small vocabulary every screen is built from. Nothing here knows about
-/// reminders or events — it is purely the look: paper ground, soft tinted
-/// blocks, one hard black pill, hairline everything else.
+/// reminders or events — it is purely the look: a soft grey ground, flat white
+/// cards, one big title per screen, and chrome that floats over the content.
 
 // MARK: - Screen chrome
 
-/// Header for a full screen: a glyph, a title, and one optional round action
-/// on the right. Replaces the navigation bar — the reference has none.
+/// Header for a full screen: one large title, an optional line under it, and
+/// round actions on the right. This *is* the navigation bar — there is no
+/// other one, so the title carries the weight the system bar used to.
 struct ScreenHeader<Trailing: View>: View {
-    let glyph: String
     let title: String
     var subtitle: String?
     @ViewBuilder var trailing: Trailing
 
     var body: some View {
-        HStack(alignment: .center, spacing: Tokens.Spacing.sm) {
-            Image(systemName: glyph)
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(Tokens.Colors.ink)
-            VStack(alignment: .leading, spacing: 0) {
+        HStack(alignment: .center, spacing: Tokens.Spacing.md) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(Tokens.Typo.screenTitle)
+                    .font(Tokens.Typo.largeTitle)
                     .foregroundStyle(Tokens.Colors.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 if let subtitle {
                     Text(subtitle)
                         .font(Tokens.Typo.label)
                         .foregroundStyle(Tokens.Colors.quiet)
                 }
             }
-            Spacer(minLength: Tokens.Spacing.md)
+            Spacer(minLength: Tokens.Spacing.sm)
             trailing
         }
-        .padding(.horizontal, Tokens.Spacing.xl)
-        .padding(.vertical, Tokens.Spacing.md)
+        .padding(.horizontal, Tokens.Layout.gutter)
+        .padding(.top, Tokens.Spacing.md)
+        .padding(.bottom, Tokens.Spacing.lg)
     }
 }
 
 extension ScreenHeader where Trailing == EmptyView {
-    init(glyph: String, title: String, subtitle: String? = nil) {
-        self.init(glyph: glyph, title: title, subtitle: subtitle) { EmptyView() }
+    init(title: String, subtitle: String? = nil) {
+        self.init(title: title, subtitle: subtitle) { EmptyView() }
     }
 }
 
-/// The round warm button in the reference's top-right corner. Carries the
-/// icon's coral so the accent appears exactly once per screen.
-struct RoundAccentButton: View {
+/// The round button the system apps put beside a large title: a glyph in a
+/// soft circle. `.accent` is the one coral control a screen is allowed.
+struct CircleButton: View {
+    enum Style {
+        case soft      // grey circle, ink glyph — the default
+        case accent    // the icon's coral, white glyph
+        case onCard    // sits on a card rather than the ground
+    }
+
     let glyph: String
+    var style: Style = .soft
+    var size: CGFloat = Tokens.Layout.headerButton
     var badge: Int = 0
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             ZStack(alignment: .topTrailing) {
-                Circle()
-                    .fill(Tokens.Colors.accentGradient)
-                    .frame(width: 38, height: 38)
-                    .overlay {
-                        Image(systemName: glyph)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.white)
+                Image(systemName: glyph)
+                    .font(.system(size: size * 0.4, weight: .semibold))
+                    .foregroundStyle(foreground)
+                    .frame(width: size, height: size)
+                    .background {
+                        switch style {
+                        case .accent:
+                            Circle().fill(Tokens.Colors.accentGradient)
+                        case .soft:
+                            Circle().fill(Tokens.Colors.fill)
+                        case .onCard:
+                            Circle().fill(Tokens.Colors.card)
+                        }
                     }
                 if badge > 0 {
                     Text("\(min(badge, 99))")
                         .font(.system(size: 10, weight: .bold, design: .rounded))
-                        .foregroundStyle(Tokens.Colors.accent)
+                        .foregroundStyle(.white)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 1)
-                        .background(Capsule().fill(.white))
+                        .background(Capsule().fill(Tokens.Colors.accent))
                         .offset(x: 4, y: -3)
                 }
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle())
+    }
+
+    private var foreground: Color {
+        style == .accent ? .white : Tokens.Colors.ink
     }
 }
 
 // MARK: - Surfaces
 
-/// A soft raised panel. Used for the tray, sheets, and anywhere a list used
-/// to have a grouped background.
+/// A card: the one raised surface in the app. Flat white on the grey ground,
+/// no border, generous corners. `tint` swaps the fill for a soft wash of a
+/// hue, for the places where colour is the information.
 struct SoftCard<Content: View>: View {
     var tint: Color?
+    var padding: CGFloat = Tokens.Spacing.lg
     @ViewBuilder var content: Content
 
     var body: some View {
         content
-            .padding(Tokens.Spacing.lg)
-            .background {
-                RoundedRectangle(cornerRadius: Tokens.Radius.card, style: .continuous)
-                    .fill(tint.map(Tokens.Colors.blockFill) ?? Tokens.Colors.surface)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: Tokens.Radius.card, style: .continuous)
-                            .stroke(
-                                tint.map(Tokens.Colors.blockStroke) ?? Tokens.Colors.hairline,
-                                lineWidth: 1
-                            )
-                    }
-            }
+            .padding(padding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .cardSurface(tint.map(Tokens.Colors.blockFill) ?? Tokens.Colors.card)
     }
 }
 
-/// A compact tinted chip — the tray's unit, and the Lists screen's row.
+/// The heading line of a card, straight out of the system apps: a tinted
+/// glyph, a tinted title, and quiet trailing detail.
+struct CardHeader: View {
+    let glyph: String
+    let title: String
+    var tint: Color = Tokens.Colors.accent
+    var detail: String?
+    var showsChevron = false
+
+    var body: some View {
+        HStack(spacing: Tokens.Spacing.sm) {
+            Image(systemName: glyph)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(tint)
+            Text(title)
+                .font(Tokens.Typo.cardTitle)
+                .foregroundStyle(tint)
+            Spacer(minLength: Tokens.Spacing.sm)
+            if let detail {
+                Text(detail)
+                    .font(Tokens.Typo.label)
+                    .foregroundStyle(Tokens.Colors.quiet)
+            }
+            if showsChevron {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Tokens.Colors.faint)
+            }
+        }
+    }
+}
+
+/// A compact card — the tray's unit. Tinted only by its glyph and its detail
+/// line; the surface itself stays white so a row of them reads as one family.
 struct TrayChip: View {
     let title: String
     var detail: String?
@@ -117,7 +161,7 @@ struct TrayChip: View {
                 if let onToggle {
                     Button(action: onToggle) {
                         Image(systemName: isCompleted ? "checkmark.circle.fill" : "circle")
-                            .font(.system(size: 18, weight: .medium))
+                            .font(.system(size: 19, weight: .light))
                             .foregroundStyle(isCompleted ? Tokens.Colors.hueDone : tint)
                     }
                     .buttonStyle(.plain)
@@ -142,23 +186,16 @@ struct TrayChip: View {
                 }
             }
             .padding(.horizontal, Tokens.Spacing.md)
-            .padding(.vertical, Tokens.Spacing.sm + 2)
-            .background {
-                RoundedRectangle(cornerRadius: Tokens.Radius.chip, style: .continuous)
-                    .fill(Tokens.Colors.blockFill(tint))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: Tokens.Radius.chip, style: .continuous)
-                            .stroke(Tokens.Colors.blockStroke(tint), lineWidth: 1)
-                    }
-            }
+            .padding(.vertical, Tokens.Spacing.md)
+            .cardSurface(radius: Tokens.Radius.block)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(PressableStyle())
     }
 }
 
 // MARK: - Actions
 
-/// The one hard black control per screen.
+/// The one filled control per screen.
 struct PillButton: View {
     let title: String
     var glyph: String?
@@ -166,21 +203,21 @@ struct PillButton: View {
     let action: () -> Void
 
     enum Style {
-        case primary   // black on paper
+        case primary   // ink
         case accent    // the icon's coral
-        case quiet     // hairline outline
+        case quiet     // soft grey fill
 
         var background: AnyShapeStyle {
             switch self {
             case .primary: AnyShapeStyle(Tokens.Colors.ink)
             case .accent: AnyShapeStyle(Tokens.Colors.accentGradient)
-            case .quiet: AnyShapeStyle(Color.clear)
+            case .quiet: AnyShapeStyle(Tokens.Colors.fill)
             }
         }
 
         var foreground: Color {
             switch self {
-            case .primary: Tokens.Colors.paper
+            case .primary: Tokens.Colors.card
             case .accent: .white
             case .quiet: Tokens.Colors.ink
             }
@@ -195,30 +232,22 @@ struct PillButton: View {
                         .font(.system(size: 15, weight: .semibold))
                 }
                 Text(title)
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .font(.system(size: 17, weight: .semibold, design: .rounded))
             }
             .foregroundStyle(style.foreground)
-            .padding(.horizontal, Tokens.Spacing.xl)
-            .padding(.vertical, Tokens.Spacing.md + 2)
-            .background {
-                Capsule().fill(style.background)
-                    .overlay {
-                        if case .quiet = style {
-                            Capsule().stroke(Tokens.Colors.hairline, lineWidth: 1)
-                        }
-                    }
-            }
+            .padding(.horizontal, Tokens.Spacing.xl + 4)
+            .padding(.vertical, Tokens.Spacing.md + 3)
+            .background { Capsule().fill(style.background) }
         }
         .buttonStyle(PressableStyle())
     }
 }
 
-/// Everything tappable sinks very slightly. The reference is static, but a
-/// screen this quiet needs its feedback somewhere.
+/// Everything tappable sinks very slightly.
 struct PressableStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
             .opacity(configuration.isPressed ? 0.9 : 1)
             .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
     }
@@ -227,25 +256,31 @@ struct PressableStyle: ButtonStyle {
 // MARK: - Screen treatment
 
 extension View {
-    /// Paper ground under a stock `Form` or `List`.
+    /// Grey ground under a stock `Form` or `List`.
     ///
     /// The bespoke screens are hand-built, but the ones that are genuinely
     /// forms — editing a reminder, picking an account — are better served by
-    /// the real control than by a reimplementation of it. This drops the
-    /// grouped-grey backdrop so they sit on the same paper as everything
-    /// else; `fontDesign(.rounded)` and the accent tint come down from the
-    /// root, so the rows already speak the same language.
+    /// the real control than by a reimplementation of it. The grouped style
+    /// already draws white cards on grey, which is exactly the language the
+    /// rest of the app speaks; this only replaces the backdrop with our own
+    /// ground so the greys match.
     func dunduFormBackground() -> some View {
         scrollContentBackground(.hidden)
-            .background(Tokens.Colors.paper)
+            .background(Tokens.Colors.ground)
+    }
+
+    /// Keeps a scroll view's last row clear of the floating tab bar.
+    func clearsFloatingBar() -> some View {
+        contentMargins(.bottom, Tokens.Layout.barInset, for: .scrollContent)
     }
 }
 
 // MARK: - Navigation
 
-/// The system tab bar brings its own material, blur and tint — all of which
-/// fight a paper-white screen. This is the same four destinations drawn in
-/// the app's own language: ink for where you are, hairline for the rest.
+/// The floating bar: destinations in a glass pill on the left, and the two
+/// things you *do* — capture by voice, add by hand — stacked in their own
+/// glass column in the right corner, the way the system apps now separate
+/// "where you are" from "what you're doing".
 struct DunduTabBar<Tab: Hashable>: View {
     struct Item: Identifiable {
         let tab: Tab
@@ -255,77 +290,100 @@ struct DunduTabBar<Tab: Hashable>: View {
         var id: String { title }
     }
 
-    @Binding var selection: Tab
-    /// Split evenly either side of the centre button. Four reads best.
-    let items: [Item]
-    /// The raised centre action — adding something, from any tab.
-    var centreGlyph = "plus"
-    var onCentre: () -> Void = {}
+    /// A round action in the right-corner stack. Listed top to bottom.
+    struct Action: Identifiable {
+        let glyph: String
+        let title: String
+        var isPrimary = false
+        let perform: () -> Void
+        var id: String { title }
+    }
 
-    private var half: Int { (items.count + 1) / 2 }
+    @Binding var selection: Tab
+    let items: [Item]
+    var actions: [Action] = []
+
+    private let actionSize: CGFloat = 46
 
     var body: some View {
-        HStack(spacing: 0) {
-            ForEach(items.prefix(half)) { tabButton($0) }
-            // Room for the raised button to sit in. Height is pinned:
-            // an unconstrained Color.clear is greedy and would stretch the
-            // whole bar to fill the screen.
-            Color.clear.frame(width: 72, height: 1)
-            ForEach(items.suffix(from: min(half, items.count))) { tabButton($0) }
+        HStack(alignment: .bottom, spacing: Tokens.Spacing.md) {
+            tabPill
+            if !actions.isEmpty { actionStack }
         }
-        .padding(.top, Tokens.Spacing.sm + 2)
-        .background(alignment: .top) {
-            Rectangle()
-                .fill(Tokens.Colors.hairline)
-                .frame(height: 1)
+        .padding(.horizontal, Tokens.Layout.gutter)
+        .padding(.bottom, Tokens.Spacing.sm)
+    }
+
+    private var tabPill: some View {
+        HStack(spacing: 2) {
+            ForEach(items) { tabButton($0) }
         }
-        .background(Tokens.Colors.paper)
-        // An overlay, not a stack member: the raised button hangs above the
-        // bar without adding its overhang to the bar's height, which would
-        // otherwise push the whole screen up by the offset.
-        .overlay(alignment: .top) {
-            Button(action: onCentre) {
-                Image(systemName: centreGlyph)
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 54, height: 54)
-                    .background(Circle().fill(Tokens.Colors.accentGradient))
-                    .background(
-                        Circle()
-                            .fill(Tokens.Colors.paper)
-                            .frame(width: 64, height: 64)
-                    )
-                    .shadow(color: Tokens.Colors.accent.opacity(0.3), radius: 8, y: 3)
+        .padding(5)
+        .floatingSurface(Capsule())
+    }
+
+    /// Both actions in one column so the corner reads as a single control,
+    /// not two loose buttons. The primary one sits at the bottom, nearest
+    /// the thumb.
+    private var actionStack: some View {
+        VStack(spacing: 6) {
+            ForEach(actions) { action in
+                Button(action: action.perform) {
+                    Image(systemName: action.glyph)
+                        .font(.system(size: action.isPrimary ? 20 : 18, weight: .semibold))
+                        .foregroundStyle(action.isPrimary ? .white : Tokens.Colors.ink)
+                        .frame(width: actionSize, height: actionSize)
+                        .background {
+                            if action.isPrimary {
+                                Circle().fill(Tokens.Colors.accentGradient)
+                                    .dunduShadow(Tokens.Shadow.accent)
+                            } else {
+                                Circle().fill(Color.clear)
+                            }
+                        }
+                        .contentShape(Circle())
+                }
+                .buttonStyle(PressableStyle())
+                .accessibilityLabel(action.title)
             }
-            .buttonStyle(PressableStyle())
-            .offset(y: -24)
         }
+        .padding(5)
+        .floatingSurface(Capsule())
     }
 
     private func tabButton(_ item: Item) -> some View {
-        Button {
-            selection = item.tab
+        let isOn = selection == item.tab
+        return Button {
+            withAnimation(Tokens.Anim.chrome) { selection = item.tab }
         } label: {
             VStack(spacing: 3) {
                 ZStack(alignment: .topTrailing) {
                     Image(systemName: item.glyph)
-                        .font(.system(size: 17, weight: selection == item.tab ? .semibold : .regular))
+                        .font(.system(size: 18, weight: isOn ? .semibold : .regular))
+                        .frame(height: 22)
                     if item.badge > 0 {
                         Circle()
                             .fill(Tokens.Colors.accent)
                             .frame(width: 6, height: 6)
-                            .offset(x: 5, y: -2)
+                            .offset(x: 6, y: -1)
                     }
                 }
-                .frame(height: 20)
                 Text(item.title)
                     .font(.system(size: 10, weight: .semibold, design: .rounded))
+                    .lineLimit(1)
             }
-            .foregroundStyle(selection == item.tab ? Tokens.Colors.ink : Tokens.Colors.quiet)
+            .foregroundStyle(isOn ? Tokens.Colors.accent : Tokens.Colors.quiet)
             .frame(maxWidth: .infinity)
-            .contentShape(Rectangle())
+            .padding(.vertical, 7)
+            .background {
+                if isOn {
+                    Capsule().fill(Tokens.Colors.blockFill(Tokens.Colors.accent))
+                }
+            }
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : [.isButton])
     }
 }
 
@@ -353,8 +411,8 @@ struct QuietEmptyState: View {
     var body: some View {
         VStack(spacing: Tokens.Spacing.sm) {
             Image(systemName: glyph)
-                .font(.system(size: 30, weight: .light))
-                .foregroundStyle(Tokens.Colors.hairline)
+                .font(.system(size: 32, weight: .light))
+                .foregroundStyle(Tokens.Colors.faint)
             Text(title)
                 .font(Tokens.Typo.body)
                 .foregroundStyle(Tokens.Colors.quiet)
@@ -366,19 +424,24 @@ struct QuietEmptyState: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, Tokens.Spacing.xl)
+        .padding(.vertical, Tokens.Spacing.xxl)
     }
 }
 
 extension View {
-    /// A List row that keeps none of List's decoration: no inset, no fill,
-    /// no separator unless asked for. Lets the rows look hand-built while
-    /// still getting swipe actions, which only exist inside a List.
-    func plainRow(separator: Bool = false) -> some View {
-        listRowInsets(EdgeInsets())
-            .listRowBackground(Color.clear)
-            .listRowSeparator(separator ? .visible : .hidden)
-            .listRowSeparatorTint(Tokens.Colors.hairline)
-            .alignmentGuide(.listRowSeparatorLeading) { _ in Tokens.Spacing.xl + 34 }
+    /// A List row that keeps none of List's decoration: no fill, no
+    /// separator, and gutter-width insets so the card inside it lines up
+    /// with every other screen.
+    func plainRow(inset: Bool = true) -> some View {
+        listRowInsets(
+            EdgeInsets(
+                top: 4,
+                leading: inset ? Tokens.Layout.gutter : 0,
+                bottom: 4,
+                trailing: inset ? Tokens.Layout.gutter : 0
+            )
+        )
+        .listRowBackground(Color.clear)
+        .listRowSeparator(.hidden)
     }
 }

@@ -47,7 +47,7 @@ struct VoiceCaptureView: View {
             case .review: reviewScreen
             }
         }
-        .background(Tokens.Colors.paper)
+        .background(Tokens.Colors.ground)
         .interactiveDismissDisabled(phase == .review)
         // Tapping the mic means "record" — there is no reason to ask twice.
         .task { await beginIfNeeded() }
@@ -59,14 +59,7 @@ struct VoiceCaptureView: View {
     private var recordingScreen: some View {
         VStack(spacing: 0) {
             HStack {
-                Button { abandon() } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(Tokens.Colors.ink)
-                        .frame(width: 40, height: 40)
-                        .background(Circle().stroke(Tokens.Colors.hairline, lineWidth: 1))
-                }
-                .buttonStyle(PressableStyle())
+                CircleButton(glyph: "xmark") { abandon() }
                 Spacer()
                 Label(
                     recorder.isRecording ? "Listening" : "Paused",
@@ -74,10 +67,19 @@ struct VoiceCaptureView: View {
                 )
                 .font(Tokens.Typo.label)
                 .foregroundStyle(recorder.isRecording ? Tokens.Colors.accent : Tokens.Colors.quiet)
+                .padding(.horizontal, Tokens.Spacing.md)
+                .padding(.vertical, 8)
+                .background {
+                    Capsule().fill(
+                        recorder.isRecording
+                            ? Tokens.Colors.blockFill(Tokens.Colors.accent)
+                            : Tokens.Colors.fill
+                    )
+                }
                 Spacer()
-                Color.clear.frame(width: 40, height: 40)
+                Color.clear.frame(width: Tokens.Layout.headerButton, height: Tokens.Layout.headerButton)
             }
-            .padding(.horizontal, Tokens.Spacing.xl)
+            .padding(.horizontal, Tokens.Layout.gutter)
             .padding(.vertical, Tokens.Spacing.md)
 
             ScrollView {
@@ -107,16 +109,12 @@ struct VoiceCaptureView: View {
                 .padding(.vertical, Tokens.Spacing.lg)
 
             HStack(spacing: Tokens.Spacing.md) {
-                Button {
+                CircleButton(
+                    glyph: recorder.isRecording ? "pause.fill" : "mic.fill",
+                    size: 56
+                ) {
                     recorder.isRecording ? recorder.pause() : resume()
-                } label: {
-                    Image(systemName: recorder.isRecording ? "pause.fill" : "mic.fill")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(Tokens.Colors.ink)
-                        .frame(width: 56, height: 56)
-                        .background(Circle().stroke(Tokens.Colors.hairline, lineWidth: 1))
                 }
-                .buttonStyle(PressableStyle())
 
                 PillButton(title: "Done", glyph: "checkmark") { stopAndProcess() }
                     .disabled(recorder.transcript.isEmpty)
@@ -141,13 +139,13 @@ struct VoiceCaptureView: View {
                             .font(Tokens.Typo.label)
                             .foregroundStyle(Tokens.Colors.ink)
                             .padding(.horizontal, Tokens.Spacing.md)
-                            .padding(.vertical, 6)
-                            .background(Capsule().stroke(Tokens.Colors.hairline, lineWidth: 1))
+                            .padding(.vertical, 8)
+                            .background(Capsule().fill(Tokens.Colors.fill))
                     }
                 }
             }
         }
-        .padding(.horizontal, Tokens.Spacing.xl)
+        .padding(.horizontal, Tokens.Layout.gutter)
     }
 
     /// A row of bars that answers "is it actually hearing me?" — the one
@@ -156,7 +154,7 @@ struct VoiceCaptureView: View {
         HStack(spacing: 4) {
             ForEach(0..<13, id: \.self) { index in
                 Capsule()
-                    .fill(recorder.isRecording ? Tokens.Colors.accent : Tokens.Colors.hairline)
+                    .fill(recorder.isRecording ? Tokens.Colors.accent : Tokens.Colors.faint)
                     .frame(width: 4, height: barHeight(index))
                     .animation(.easeOut(duration: 0.12), value: recorder.level)
             }
@@ -291,18 +289,10 @@ struct VoiceCaptureView: View {
     private var reviewScreen: some View {
         VStack(spacing: 0) {
             ScreenHeader(
-                glyph: "checklist",
                 title: cards.count == 1 ? "1 reminder" : "\(cards.count) reminders",
                 subtitle: "Edit anything before saving"
             ) {
-                Button { abandon() } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(Tokens.Colors.ink)
-                        .frame(width: 40, height: 40)
-                        .background(Circle().stroke(Tokens.Colors.hairline, lineWidth: 1))
-                }
-                .buttonStyle(PressableStyle())
+                CircleButton(glyph: "xmark") { abandon() }
             }
 
             ScrollView {
@@ -311,7 +301,7 @@ struct VoiceCaptureView: View {
                         captureCard($card)
                     }
                 }
-                .padding(.horizontal, Tokens.Spacing.xl)
+                .padding(.horizontal, Tokens.Layout.gutter)
                 .padding(.bottom, Tokens.Spacing.lg)
             }
 
@@ -330,7 +320,7 @@ struct VoiceCaptureView: View {
         VStack(alignment: .leading, spacing: Tokens.Spacing.md) {
             HStack(alignment: .top, spacing: Tokens.Spacing.sm) {
                 TextField("Title", text: card.title, axis: .vertical)
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .font(Tokens.Typo.cardTitle)
                     .foregroundStyle(Tokens.Colors.ink)
                 Button {
                     withAnimation(Tokens.Anim.content) {
@@ -338,8 +328,8 @@ struct VoiceCaptureView: View {
                     }
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 18))
-                        .foregroundStyle(Tokens.Colors.hairline)
+                        .font(.system(size: 19))
+                        .foregroundStyle(Tokens.Colors.faint)
                 }
                 .buttonStyle(.plain)
             }
@@ -395,28 +385,21 @@ struct VoiceCaptureView: View {
             }
         }
         .padding(Tokens.Spacing.lg)
-        .background {
-            RoundedRectangle(cornerRadius: Tokens.Radius.card, style: .continuous)
-                .fill(Tokens.Colors.paper)
-                .overlay {
-                    RoundedRectangle(cornerRadius: Tokens.Radius.card, style: .continuous)
-                        .stroke(Tokens.Colors.hairline, lineWidth: 1)
-                }
-        }
+        .cardSurface()
     }
 
     private func chip(_ text: String, glyph: String, tint: Color) -> some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 5) {
             Image(systemName: glyph)
-                .font(.system(size: 10, weight: .semibold))
+                .font(.system(size: 11, weight: .semibold))
             Text(text)
-                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .font(Tokens.Typo.caption)
                 .lineLimit(1)
         }
         .foregroundStyle(tint)
-        .padding(.horizontal, Tokens.Spacing.sm + 2)
-        .padding(.vertical, 5)
-        .background(Capsule().stroke(Tokens.Colors.hairline, lineWidth: 1))
+        .padding(.horizontal, Tokens.Spacing.md)
+        .padding(.vertical, 7)
+        .background(Capsule().fill(Tokens.Colors.fill))
     }
 
     private func listName(_ id: UUID?) -> String? {

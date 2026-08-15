@@ -39,6 +39,18 @@ and what "working" looks like. Report anything off and it gets fixed.
 - [ ] Completion set in Apple Reminders while Dundu is closed arrives on
       next foreground.
 
+## 3b. iPhone shell (after the design pass)
+
+- [ ] Tab bar: four destinations in the floating pill, with ＋ and the mic
+      stacked in the right-hand corner column. Both reachable from every
+      tab; the pill and the stack stay clear of the last row on every
+      screen (scroll Reminders, Inbox and Settings to the bottom to check).
+- [ ] Reminders: each item is its own white card on the grey ground, list
+      headings and filter chips carry no colour dots, and the selected
+      filter chip picks up its list's colour.
+- [ ] Light and dark: cards stay readable against the ground in both, and
+      the bar's material still separates it from what scrolls under it.
+
 ## 4. Intelligence (fill Profile Context first)
 
 - [ ] Settings → Profile context: add your businesses, aliases, people
@@ -76,7 +88,8 @@ and what "working" looks like. Report anything off and it gets fixed.
 
 ## 8. Voice capture (new — needs your mic)
 
-- [ ] Today → mic button → speak several tasks in one go, e.g. the spec's
+- [ ] Tab bar → mic button in the corner stack (above ＋, on any tab) →
+      speak several tasks in one go, e.g. the spec's
       own example: "Call the CA about the DIFC filing before Thursday,
       pick up the car from service tomorrow evening, and remind me when I
       reach the office to send Joby the deck."

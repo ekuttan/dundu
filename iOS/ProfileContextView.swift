@@ -55,6 +55,7 @@ struct ProfileContextView: View {
             }
         }
         .dunduFormBackground()
+        .clearsFloatingBar()
         .navigationTitle("Profile Context")
         .onAppear { profile = store.load() }
     }

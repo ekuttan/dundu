@@ -221,17 +221,12 @@ struct TimelineBlock: View {
                 }
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, Tokens.Spacing.sm + 2)
-            .padding(.vertical, Tokens.Spacing.sm)
+            .padding(.horizontal, Tokens.Spacing.md)
+            .padding(.vertical, Tokens.Spacing.sm + 2)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .background {
-                RoundedRectangle(cornerRadius: Tokens.Radius.block, style: .continuous)
-                    .fill(Tokens.Colors.blockFill(entry.tint))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: Tokens.Radius.block, style: .continuous)
-                            .stroke(Tokens.Colors.blockStroke(entry.tint), lineWidth: 1)
-                    }
-            }
+            // No outline: the fill alone separates a block from the grid,
+            // which is what keeps a busy day from turning into a mesh.
+            .cardSurface(Tokens.Colors.blockFill(entry.tint), radius: Tokens.Radius.block)
             .opacity(entry.isCompleted ? 0.55 : 1)
         }
         .buttonStyle(PressableStyle())
@@ -242,8 +237,8 @@ struct TimelineBlock: View {
                         .font(.system(size: 22))
                         .symbolRenderingMode(.palette)
                         .foregroundStyle(
-                            entry.isCompleted ? .white : Tokens.Colors.paper,
-                            entry.isCompleted ? Tokens.Colors.hueDone : entry.tint.opacity(0.35)
+                            entry.isCompleted ? .white : Tokens.Colors.card,
+                            entry.isCompleted ? Tokens.Colors.hueDone : entry.tint.opacity(0.4)
                         )
                 }
                 .buttonStyle(.plain)

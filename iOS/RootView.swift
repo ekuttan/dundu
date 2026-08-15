@@ -14,6 +14,9 @@ struct RootView: View {
     @AppStorage("hasOnboarded") private var hasOnboarded = false
     @State private var showOnboarding = false
     @State private var showingQuickAdd = false
+    /// Voice capture used to live in the Reminders header. It belongs with
+    /// the other thing you *do*, in the corner stack, reachable from any tab.
+    @State private var showingVoiceCapture = false
     /// Reminders opens first: it is the list you came to check, and Today is
     /// one tap away when you want the shape of the day instead.
     @State private var selectedTab: AppTab = .lists
@@ -24,7 +27,10 @@ struct RootView: View {
     ) private var pendingReviews: [ReminderItem]
 
     var body: some View {
-        VStack(spacing: 0) {
+        // The bar floats over the content rather than sitting under it, so
+        // the screens run to the bottom edge and scroll beneath it. Each
+        // scrolling screen keeps its last row clear with `clearsFloatingBar`.
+        ZStack(alignment: .bottom) {
             // All four stay alive so scroll position and in-progress edits
             // survive a tab switch, the way TabView used to give us for free.
             ZStack {
@@ -45,10 +51,13 @@ struct RootView: View {
                     .init(tab: .inbox, glyph: "tray", title: "Inbox", badge: pendingReviews.count),
                     .init(tab: .settings, glyph: "gearshape", title: "Settings"),
                 ],
-                onCentre: { showingQuickAdd = true }
+                actions: [
+                    .init(glyph: "mic.fill", title: "Record") { showingVoiceCapture = true },
+                    .init(glyph: "plus", title: "Add", isPrimary: true) { showingQuickAdd = true },
+                ]
             )
         }
-        .background(Tokens.Colors.paper)
+        .background(Tokens.Colors.ground)
         // Set once, at the root: sheets inherit the environment, so every
         // stock control down to a date picker comes out rounded and coral
         // without each screen restating it.
@@ -58,6 +67,7 @@ struct RootView: View {
             showOnboarding = !hasOnboarded
         }
         .sheet(isPresented: $showingQuickAdd) { ReminderEditView(existing: nil) }
+        .sheet(isPresented: $showingVoiceCapture) { VoiceCaptureView() }
         .sheet(isPresented: $showOnboarding, onDismiss: {
             Task { await ReminderSyncService.syncNow(context: context) }
         }) {
@@ -120,47 +130,55 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: Tokens.Spacing.sm) {
-                    sectionLabel("Accounts")
-                    NavigationLink { AppleRemindersView() } label: {
-                        SettingsRow(glyph: "checklist", title: "Apple Reminders",
-                                    tint: Tokens.Colors.hueTask)
-                    }
-                    .buttonStyle(PressableStyle())
-                    NavigationLink { GoogleAccountsView() } label: {
-                        SettingsRow(glyph: "calendar", title: "Google Calendar",
-                                    tint: Tokens.Colors.hueMeeting)
-                    }
-                    .buttonStyle(PressableStyle())
+            VStack(spacing: 0) {
+                ScreenHeader(title: "Settings")
 
-                    sectionLabel("Intelligence")
-                    NavigationLink { ProfileContextView() } label: {
-                        SettingsRow(glyph: "brain", title: "Profile context",
-                                    tint: Tokens.Colors.hueTravel)
-                    }
-                    .buttonStyle(PressableStyle())
+                ScrollView {
+                    VStack(alignment: .leading, spacing: Tokens.Spacing.lg) {
+                        section("Accounts") {
+                            NavigationLink { AppleRemindersView() } label: {
+                                SettingsRow(glyph: "checklist", title: "Apple Reminders",
+                                            tint: Tokens.Colors.hueTask)
+                            }
+                            .buttonStyle(PressableStyle())
+                            rowDivider
+                            NavigationLink { GoogleAccountsView() } label: {
+                                SettingsRow(glyph: "calendar", title: "Google Calendar",
+                                            tint: Tokens.Colors.hueMeeting)
+                            }
+                            .buttonStyle(PressableStyle())
+                        }
 
-                    sectionLabel("Testing")
-                    Menu {
-                        Button("Load Inbox test cases", systemImage: "flask") {
-                            seedResult = InboxScenarios.seed(context: context)
+                        section("Intelligence") {
+                            NavigationLink { ProfileContextView() } label: {
+                                SettingsRow(glyph: "brain", title: "Profile context",
+                                            tint: Tokens.Colors.hueTravel)
+                            }
+                            .buttonStyle(PressableStyle())
                         }
-                        Button("Remove test cases", systemImage: "trash", role: .destructive) {
-                            seedResult = InboxScenarios.clear(context: context)
+
+                        section("Testing") {
+                            Menu {
+                                Button("Load Inbox test cases", systemImage: "flask") {
+                                    seedResult = InboxScenarios.seed(context: context)
+                                }
+                                Button("Remove test cases", systemImage: "trash", role: .destructive) {
+                                    seedResult = InboxScenarios.clear(context: context)
+                                }
+                            } label: {
+                                SettingsRow(glyph: "flask", title: "Inbox test cases",
+                                            tint: Tokens.Colors.hueUrgent, showsChevron: true)
+                            }
+                            .buttonStyle(PressableStyle())
                         }
-                    } label: {
-                        SettingsRow(glyph: "flask", title: "Inbox test cases",
-                                    tint: Tokens.Colors.hueUrgent, showsChevron: true)
                     }
-                    .buttonStyle(PressableStyle())
+                    .padding(.horizontal, Tokens.Layout.gutter)
+                    .padding(.bottom, Tokens.Spacing.lg)
                 }
-                .padding(.horizontal, Tokens.Spacing.xl)
-                .padding(.vertical, Tokens.Spacing.lg)
+                .clearsFloatingBar()
             }
-            .background(Tokens.Colors.paper)
-            .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.inline)
+            .background(Tokens.Colors.ground)
+            .toolbar(.hidden, for: .navigationBar)
             // The seeder used to swallow its own failures behind `try?`, so
             // "nothing happened" and "it broke" looked identical.
             .alert(
@@ -175,15 +193,33 @@ struct SettingsView: View {
         }
     }
 
-    private func sectionLabel(_ text: String) -> some View {
-        Text(text)
-            .font(Tokens.Typo.label)
-            .foregroundStyle(Tokens.Colors.quiet)
-            .padding(.top, Tokens.Spacing.lg)
-            .padding(.leading, Tokens.Spacing.xs)
+    /// A label over one card. Rows live *inside* the card and are told apart
+    /// by an inset hairline, the way the system's grouped lists read.
+    @ViewBuilder
+    private func section<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: Tokens.Spacing.sm) {
+            Text(title)
+                .font(Tokens.Typo.label)
+                .foregroundStyle(Tokens.Colors.quiet)
+                .padding(.leading, Tokens.Spacing.md)
+            VStack(spacing: 0) { content() }
+                .cardSurface()
+        }
+    }
+
+    private var rowDivider: some View {
+        Rectangle()
+            .fill(Tokens.Colors.hairline)
+            .frame(height: 1)
+            .padding(.leading, 60)
     }
 }
 
+/// One line inside a settings card: a tinted glyph in a rounded well, the
+/// title, and a chevron. No surface of its own — the card is the surface.
 struct SettingsRow: View {
     let glyph: String
     let title: String
@@ -193,30 +229,26 @@ struct SettingsRow: View {
     var body: some View {
         HStack(spacing: Tokens.Spacing.md) {
             Image(systemName: glyph)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(tint)
-                .frame(width: 28, height: 28)
-                .background(Circle().fill(Tokens.Colors.blockFill(tint)))
+                .frame(width: 30, height: 30)
+                .background {
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(Tokens.Colors.blockFill(tint))
+                }
             Text(title)
                 .font(Tokens.Typo.body)
                 .foregroundStyle(Tokens.Colors.ink)
             Spacer()
             if showsChevron {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Tokens.Colors.hairline)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Tokens.Colors.faint)
             }
         }
         .padding(.horizontal, Tokens.Spacing.lg)
-        .padding(.vertical, Tokens.Spacing.md)
-        .background {
-            RoundedRectangle(cornerRadius: Tokens.Radius.card, style: .continuous)
-                .fill(Tokens.Colors.surface)
-                .overlay {
-                    RoundedRectangle(cornerRadius: Tokens.Radius.card, style: .continuous)
-                        .stroke(Tokens.Colors.hairline, lineWidth: 1)
-                }
-        }
+        .padding(.vertical, Tokens.Spacing.md + 2)
+        .contentShape(Rectangle())
     }
 }
 

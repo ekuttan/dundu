@@ -34,7 +34,6 @@ struct InboxView: View {
     var body: some View {
         VStack(spacing: 0) {
             ScreenHeader(
-                glyph: "tray",
                 title: "Inbox",
                 subtitle: pendingItems.isEmpty ? nil
                     : (pendingItems.count == 1 ? "1 question" : "\(pendingItems.count) questions")
@@ -59,11 +58,12 @@ struct InboxView: View {
                         )
                     }
                 }
-                .padding(.horizontal, Tokens.Spacing.xl)
-                .padding(.vertical, Tokens.Spacing.md)
+                .padding(.horizontal, Tokens.Layout.gutter)
+                .padding(.bottom, Tokens.Spacing.md)
             }
+            .clearsFloatingBar()
         }
-        .background(Tokens.Colors.paper)
+        .background(Tokens.Colors.ground)
         .sheet(item: $editingReminder) { ReminderEditView(existing: $0) }
     }
 
@@ -121,38 +121,29 @@ struct InboxCard: View {
             footer
         }
         .padding(Tokens.Spacing.lg)
-        .background {
-            RoundedRectangle(cornerRadius: Tokens.Radius.card, style: .continuous)
-                .fill(Tokens.Colors.paper)
-                .overlay {
-                    RoundedRectangle(cornerRadius: Tokens.Radius.card, style: .continuous)
-                        .stroke(Tokens.Colors.hairline, lineWidth: 1)
-                }
-        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cardSurface()
     }
 
-    /// What the item actually says right now, before anything is accepted.
+    /// A tinted heading line saying where the item came from, then what it
+    /// actually says right now, before anything is accepted — the same shape
+    /// the system's own cards use.
     private var header: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: Tokens.Spacing.xs) {
-                if item.origin == .siriSuspected {
-                    Image(systemName: "mic.fill")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(Tokens.Colors.quiet)
-                }
+        VStack(alignment: .leading, spacing: Tokens.Spacing.sm) {
+            CardHeader(
+                glyph: item.origin == .siriSuspected ? "mic.fill" : "tray",
+                title: item.origin == .siriSuspected ? "Dictated" : "Needs a check",
+                tint: isLate ? Tokens.Colors.overdue : Tokens.Colors.accent,
+                detail: item.dueDate.map { Formatters.relativeTime(to: $0) }
+            )
+            VStack(alignment: .leading, spacing: 3) {
                 Text(item.title)
-                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .font(Tokens.Typo.cardTitle)
                     .foregroundStyle(Tokens.Colors.ink)
-            }
-            HStack(spacing: Tokens.Spacing.sm) {
-                if let due = item.dueDate {
-                    Text(Formatters.relativeTime(to: due))
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(isLate ? Tokens.Colors.overdue : Tokens.Colors.quiet)
-                }
+                    .fixedSize(horizontal: false, vertical: true)
                 if item.locationAlarm != nil {
                     Label("Location", systemImage: "mappin")
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .font(Tokens.Typo.caption)
                         .foregroundStyle(Tokens.Colors.quiet)
                 }
             }
@@ -196,12 +187,12 @@ struct InboxCard: View {
                     .frame(width: 16)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .font(.system(size: 15, weight: .medium, design: .rounded))
                         .foregroundStyle(Tokens.Colors.ink)
                         .fixedSize(horizontal: false, vertical: true)
                     if let detail {
                         Text(detail)
-                            .font(.system(size: 11, weight: .regular, design: .rounded))
+                            .font(.system(size: 12, weight: .regular, design: .rounded))
                             .foregroundStyle(Tokens.Colors.quiet)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -211,21 +202,21 @@ struct InboxCard: View {
             HStack(spacing: Tokens.Spacing.sm) {
                 Button(action: onAccept) {
                     Text(accept)
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Tokens.Colors.paper)
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Tokens.Colors.card)
                         .padding(.horizontal, Tokens.Spacing.lg)
-                        .padding(.vertical, Tokens.Spacing.sm)
+                        .padding(.vertical, Tokens.Spacing.sm + 2)
                         .background(Capsule().fill(Tokens.Colors.ink))
                 }
                 .buttonStyle(PressableStyle())
 
                 Button(action: onReject) {
                     Text(reject)
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
                         .foregroundStyle(Tokens.Colors.ink)
                         .padding(.horizontal, Tokens.Spacing.lg)
-                        .padding(.vertical, Tokens.Spacing.sm)
-                        .background(Capsule().stroke(Tokens.Colors.hairline, lineWidth: 1))
+                        .padding(.vertical, Tokens.Spacing.sm + 2)
+                        .background(Capsule().fill(Tokens.Colors.fill))
                 }
                 .buttonStyle(PressableStyle())
             }
