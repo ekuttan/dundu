@@ -16,6 +16,26 @@ enum MacStores {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// Resyncs when the Mac wakes or Dundu is brought forward. Sleep stops
+    /// timers and can swallow EventKit change notifications outright, so
+    /// neither can be relied on to catch us up on its own.
+    @MainActor
+    private func observeWake(controller: NotchPanelController) {
+        let resync = {
+            Task { @MainActor in
+                await ReminderSyncService.syncNow(context: ModelContext(MacStores.container))
+                await GoogleSyncService.syncNow(context: ModelContext(MacStores.container))
+                controller.refresh()
+            }
+        }
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { _ in resync() }
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
+        ) { _ in resync() }
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         Task { @MainActor in
             let controller = NotchPanelController(container: MacStores.container)
@@ -31,11 +51,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             await GoogleSyncService.syncNow(context: ModelContext(MacStores.container))
             controller.refresh()
 
+            // A menu bar app runs for days. Waking the Mac, or simply time
+            // passing, has to bring it back in step — a seven-hour-old
+            // process showing seven-hour-old reminders is the failure this
+            // prevents.
+            observeWake(controller: controller)
+
             // Google has no push without a webhook: poll every 5 minutes
-            // while running (spec §7).
+            // while running (spec §7). Reminders ride the same tick: EKEvent
+            // change notifications can be missed across sleep.
             while true {
                 try? await Task.sleep(for: GoogleSyncService.pollInterval)
+                await ReminderSyncService.syncNow(context: ModelContext(MacStores.container))
                 await GoogleSyncService.syncNow(context: ModelContext(MacStores.container))
+                controller.refresh()
             }
         }
     }

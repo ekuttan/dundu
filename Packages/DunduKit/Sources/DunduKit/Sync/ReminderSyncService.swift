@@ -207,6 +207,10 @@ public enum ReminderSyncService {
         }
 
         try context.purgeExpiredTombstones(now: now)
+        // Two devices each mint their own local record for the same
+        // EKReminder, and CloudKit then replicates both. Syncing is what
+        // creates the duplicates, so syncing is where they get collapsed.
+        try context.deduplicateReminders(now: now)
         try context.save()
 
         // 8. Intelligence on ingest (spec §9 trigger 1): every new remote

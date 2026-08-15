@@ -94,12 +94,13 @@ struct MenuBarView: View {
                 .font(.caption)
             }
             }
-            .padding(Tokens.Spacing.sm)
-            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: Tokens.Radius.card))
+            .padding(Tokens.Spacing.md)
+            .cardSurface(Tokens.Colors.fill, radius: Tokens.Radius.chip)
 
             if openReminders.isEmpty {
                 Text("All clear")
-                    .foregroundStyle(.secondary)
+                    .font(Tokens.Typo.label)
+                    .foregroundStyle(Tokens.Colors.quiet)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, Tokens.Spacing.lg)
             } else {
@@ -113,20 +114,28 @@ struct MenuBarView: View {
                             Task { await ReminderSyncService.syncNow(context: context) }
                         } label: {
                             Image(systemName: "circle")
+                                .font(.system(size: 14, weight: .light))
+                                .foregroundStyle(Tokens.Colors.faint)
                         }
                         .buttonStyle(.plain)
 
                         Text(reminder.title)
+                            .font(Tokens.Typo.label)
+                            .foregroundStyle(Tokens.Colors.ink)
                             .lineLimit(1)
 
                         Spacer()
 
                         if let due = reminder.dueDate {
                             Text(Formatters.relativeTime(to: due))
-                                .font(.caption)
-                                .foregroundStyle(due < Date() ? Tokens.Colors.overdue : .secondary)
+                                .font(Tokens.Typo.caption)
+                                .foregroundStyle(due < Date()
+                                                 ? Tokens.Colors.overdue : Tokens.Colors.quiet)
                         }
                     }
+                    .padding(.horizontal, Tokens.Spacing.md)
+                    .padding(.vertical, Tokens.Spacing.sm + 2)
+                    .cardSurface(radius: Tokens.Radius.chip)
                 }
                 }
                 }
@@ -157,9 +166,15 @@ struct MenuBarView: View {
         }
         .padding(Tokens.Spacing.lg)
         .frame(width: 320)
+        .background(Tokens.Colors.ground)
+        .fontDesign(.rounded)
+        .tint(Tokens.Colors.accent)
         .task {
             accessStatus = EventKitBridge.accessStatus()
+            // Opening the menu is a request to see what's true now, and this
+            // process may have been running for days.
             await ReminderSyncService.syncNow(context: context)
+            NotchPanel.shared?.refresh()
             for await _ in await ReminderSyncService.bridge.observeChanges() {
                 try? await Task.sleep(for: ReminderSyncService.changeDebounce)
                 await ReminderSyncService.syncNow(context: context)
