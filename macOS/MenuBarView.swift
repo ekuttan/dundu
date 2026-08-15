@@ -47,7 +47,8 @@ struct MenuBarView: View {
                     }
                 } label: {
                     Image(systemName: quickDueDate == nil ? "calendar.badge.plus" : "calendar.badge.clock")
-                        .foregroundStyle(quickDueDate == nil ? .secondary : Color.accentColor)
+                        .foregroundStyle(quickDueDate == nil
+                                         ? Tokens.Colors.faint : Tokens.Colors.ink)
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
@@ -158,7 +159,7 @@ struct MenuBarView: View {
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Tokens.Colors.quiet)
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
@@ -168,7 +169,6 @@ struct MenuBarView: View {
         .frame(width: 320)
         .background(Tokens.Colors.ground)
         .fontDesign(.rounded)
-        .tint(Tokens.Colors.accent)
         .task {
             accessStatus = EventKitBridge.accessStatus()
             // Opening the menu is a request to see what's true now, and this

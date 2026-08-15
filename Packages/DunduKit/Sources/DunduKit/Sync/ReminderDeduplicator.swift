@@ -48,8 +48,19 @@ public enum ReminderDeduplicator {
         public let drop: [UUID]
     }
 
+    /// How close together two undated copies must be created to count as the
+    /// same reminder arriving twice. Beyond this they are two real tasks that
+    /// happen to share a name.
+    static let raceWindow: TimeInterval = 300
+
     /// Groups by external identity first, then by content. Returns one
     /// resolution per group that actually has duplicates.
+    ///
+    /// The content pass is deliberately timid. Completed reminders repeat by
+    /// nature — the same chore, done every week, is a dozen rows with one
+    /// title, one list and no due date — so matching them on content wipes
+    /// out history. Only open items are ever considered, and even then a
+    /// shared title is not enough on its own.
     public static func resolve(_ candidates: [Candidate]) -> [Resolution] {
         var resolutions: [Resolution] = []
         var claimed: Set<UUID> = []
@@ -67,12 +78,35 @@ public enum ReminderDeduplicator {
         // item created locally on one device and pushed to EventKit can come
         // back to the other device before its mapping arrives, so the two
         // copies never share an external ID.
-        let remaining = candidates.filter { !claimed.contains($0.localID) }
+        let remaining = candidates.filter { !claimed.contains($0.localID) && !$0.isCompleted }
         for (_, group) in Dictionary(grouping: remaining, by: Fingerprint.init) where group.count > 1 {
-            resolutions.append(pick(group))
+            for cluster in corroborate(group) where cluster.count > 1 {
+                resolutions.append(pick(cluster))
+            }
         }
 
         return resolutions
+    }
+
+    /// A shared fingerprint is suspicion, not proof. Copies with a due date
+    /// are taken at their word: agreeing on title, list *and* an exact minute
+    /// is not coincidence. Undated copies have to have been created within
+    /// minutes of each other, which is the sync race that produces them —
+    /// two undated "Brush" reminders added weeks apart are two real tasks.
+    private static func corroborate(_ group: [Candidate]) -> [[Candidate]] {
+        if group.first?.dueDate != nil { return [group] }
+
+        var clusters: [[Candidate]] = []
+        for candidate in group.sorted(by: { $0.createdAt < $1.createdAt }) {
+            if let index = clusters.indices.last,
+               let last = clusters[index].last,
+               candidate.createdAt.timeIntervalSince(last.createdAt) <= raceWindow {
+                clusters[index].append(candidate)
+            } else {
+                clusters.append([candidate])
+            }
+        }
+        return clusters
     }
 
     /// Keeps the most recently modified, breaking ties on the oldest record —

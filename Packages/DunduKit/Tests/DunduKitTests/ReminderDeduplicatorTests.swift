@@ -117,3 +117,71 @@ struct ReminderDeduplicatorTests {
         #expect(ReminderDeduplicator.resolve(items).isEmpty)
     }
 }
+
+// MARK: - Regressions
+
+/// These cover the failure that tombstoned 222 completed reminders on a live
+/// store: a weekly chore is many completed rows sharing a title, a list and
+/// no due date, which the first content pass read as one item duplicated.
+@Suite("Duplicate reminders — history is not duplication")
+struct ReminderDeduplicatorHistoryTests {
+    private func done(_ title: String, list: UUID, created: TimeInterval) -> ReminderDeduplicator.Candidate {
+        ReminderDeduplicator.Candidate(
+            localID: UUID(), externalID: nil, title: title, listID: list,
+            dueDate: nil, isCompleted: true,
+            modifiedAt: Date(timeIntervalSince1970: created),
+            createdAt: Date(timeIntervalSince1970: created)
+        )
+    }
+
+    @Test func repeatedCompletionsOfTheSameChoreAreNeverCollapsed() {
+        let list = UUID()
+        let weeks = (0..<12).map { done("Brush", list: list, created: Double($0) * 604_800) }
+        #expect(ReminderDeduplicator.resolve(weeks).isEmpty)
+    }
+
+    @Test func aCompletedItemIsNeverMergedIntoAnOpenOneByContent() {
+        let list = UUID()
+        let finished = done("Brush", list: list, created: 0)
+        let fresh = ReminderDeduplicator.Candidate(
+            localID: UUID(), externalID: nil, title: "Brush", listID: list,
+            dueDate: nil, isCompleted: false,
+            modifiedAt: Date(timeIntervalSince1970: 1_000_000),
+            createdAt: Date(timeIntervalSince1970: 1_000_000)
+        )
+        #expect(ReminderDeduplicator.resolve([finished, fresh]).isEmpty)
+    }
+
+    /// Undated copies only count when they appeared together — that is the
+    /// CloudKit/EventKit race. Added weeks apart, they are two real tasks.
+    @Test func undatedCopiesCreatedFarApartAreLeftAlone() {
+        let list = UUID()
+        let january = ReminderDeduplicator.Candidate(
+            localID: UUID(), externalID: nil, title: "Brush", listID: list,
+            dueDate: nil, isCompleted: false,
+            modifiedAt: Date(timeIntervalSince1970: 0), createdAt: Date(timeIntervalSince1970: 0)
+        )
+        let march = ReminderDeduplicator.Candidate(
+            localID: UUID(), externalID: nil, title: "Brush", listID: list,
+            dueDate: nil, isCompleted: false,
+            modifiedAt: Date(timeIntervalSince1970: 5_000_000),
+            createdAt: Date(timeIntervalSince1970: 5_000_000)
+        )
+        #expect(ReminderDeduplicator.resolve([january, march]).isEmpty)
+    }
+
+    @Test func undatedCopiesFromTheSameSyncStillCollapse() {
+        let list = UUID()
+        let first = ReminderDeduplicator.Candidate(
+            localID: UUID(), externalID: nil, title: "Brush", listID: list,
+            dueDate: nil, isCompleted: false,
+            modifiedAt: Date(timeIntervalSince1970: 100), createdAt: Date(timeIntervalSince1970: 100)
+        )
+        let echo = ReminderDeduplicator.Candidate(
+            localID: UUID(), externalID: nil, title: "Brush", listID: list,
+            dueDate: nil, isCompleted: false,
+            modifiedAt: Date(timeIntervalSince1970: 130), createdAt: Date(timeIntervalSince1970: 130)
+        )
+        #expect(ReminderDeduplicator.resolve([first, echo]).count == 1)
+    }
+}
