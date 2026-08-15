@@ -130,10 +130,17 @@ enum Tokens {
             base.opacity(0.24)
         }
 
-        /// Lifted from the app icon's gradient so the one warm accent in the
-        /// UI is the same coral the user sees on their home screen.
-        static let accent = Color(red: 0.97, green: 0.42, blue: 0.40)
-        static let accentWarm = Color(red: 0.99, green: 0.64, blue: 0.38)
+        /// The one accent, and it is deliberately quiet. Chrome is ink and
+        /// grey — a selected tab, a primary button, a heading — so the blue is
+        /// left to mean "this does something": the floating add button, a
+        /// link, a live recording, a badge worth noticing.
+        ///
+        /// Flat, not a gradient. A gradient reads as decoration, and this
+        /// colour is meant to read as a signal.
+        static let accent = Color(red: 0.20, green: 0.50, blue: 0.93)
+        static let accentWarm = Color(red: 0.34, green: 0.60, blue: 0.96)
+        /// Kept as a gradient type so call sites need no shape change, but
+        /// the two stops sit close enough together to read as one colour.
         static let accentGradient = LinearGradient(
             colors: [accent, accentWarm],
             startPoint: .topLeading,
