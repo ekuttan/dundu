@@ -303,86 +303,100 @@ struct DunduTabBar<Tab: Hashable>: View {
     let items: [Item]
     var actions: [Action] = []
 
-    private let actionSize: CGFloat = 46
+    /// Round buttons that sit in the bar's own row.
+    private let actionSize: CGFloat = 52
+    /// The one floating action, deliberately bigger than everything else and
+    /// lifted clear of the bar.
+    private let primarySize: CGFloat = 62
+
+    private var secondary: [Action] { actions.filter { !$0.isPrimary } }
+    private var primary: Action? { actions.first { $0.isPrimary } }
 
     var body: some View {
         HStack(alignment: .bottom, spacing: Tokens.Spacing.md) {
             tabPill
-            if !actions.isEmpty { actionStack }
+            ForEach(secondary) { action in
+                roundButton(action)
+            }
         }
         .padding(.horizontal, Tokens.Layout.gutter)
         .padding(.bottom, Tokens.Spacing.sm)
+        // The primary action floats above the row rather than sitting in it,
+        // so the bar reads as navigation and the accent reads as the one
+        // thing you do. An overlay keeps its lift out of the layout.
+        .overlay(alignment: .bottomTrailing) {
+            if let primary {
+                Button(action: primary.perform) {
+                    Image(systemName: primary.glyph)
+                        .font(.system(size: 26, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: primarySize, height: primarySize)
+                        .background(Circle().fill(Tokens.Colors.accentGradient))
+                        .dunduShadow(Tokens.Shadow.accent)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(PressableStyle())
+                .accessibilityLabel(primary.title)
+                .padding(.trailing, Tokens.Layout.gutter)
+                .padding(.bottom, actionSize + Tokens.Spacing.lg + Tokens.Spacing.sm)
+            }
+        }
     }
 
     private var tabPill: some View {
         HStack(spacing: 2) {
             ForEach(items) { tabButton($0) }
         }
-        .padding(5)
+        .padding(6)
         .floatingSurface(Capsule())
     }
 
-    /// Both actions in one column so the corner reads as a single control,
-    /// not two loose buttons. The primary one sits at the bottom, nearest
-    /// the thumb.
-    private var actionStack: some View {
-        VStack(spacing: 6) {
-            ForEach(actions) { action in
-                Button(action: action.perform) {
-                    Image(systemName: action.glyph)
-                        .font(.system(size: action.isPrimary ? 20 : 18, weight: .semibold))
-                        .foregroundStyle(action.isPrimary ? .white : Tokens.Colors.ink)
-                        .frame(width: actionSize, height: actionSize)
-                        .background {
-                            if action.isPrimary {
-                                Circle().fill(Tokens.Colors.accentGradient)
-                                    .dunduShadow(Tokens.Shadow.accent)
-                            } else {
-                                Circle().fill(Color.clear)
-                            }
-                        }
-                        .contentShape(Circle())
-                }
-                .buttonStyle(PressableStyle())
-                .accessibilityLabel(action.title)
-            }
+    /// Same material and height as the pill, so the row reads as one piece of
+    /// chrome broken into parts rather than a bar with something stuck to it.
+    private func roundButton(_ action: Action) -> some View {
+        Button(action: action.perform) {
+            Image(systemName: action.glyph)
+                .font(.system(size: 19, weight: .semibold))
+                .foregroundStyle(Tokens.Colors.ink)
+                .frame(width: actionSize, height: actionSize)
+                .contentShape(Circle())
         }
-        .padding(5)
-        .floatingSurface(Capsule())
+        .buttonStyle(PressableStyle())
+        .accessibilityLabel(action.title)
+        .background { Circle().fill(.clear) }
+        .floatingSurface(Circle())
     }
 
+    /// Icons only. A label under every glyph is a second row of type
+    /// competing with the screen's own title, and the reference does without.
     private func tabButton(_ item: Item) -> some View {
         let isOn = selection == item.tab
         return Button {
             withAnimation(Tokens.Anim.chrome) { selection = item.tab }
         } label: {
-            VStack(spacing: 3) {
-                ZStack(alignment: .topTrailing) {
-                    Image(systemName: item.glyph)
-                        .font(.system(size: 18, weight: isOn ? .semibold : .regular))
-                        .frame(height: 22)
-                    if item.badge > 0 {
-                        Circle()
-                            .fill(Tokens.Colors.accent)
-                            .frame(width: 6, height: 6)
-                            .offset(x: 6, y: -1)
-                    }
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: item.glyph)
+                    .font(.system(size: 20, weight: isOn ? .semibold : .regular))
+                if item.badge > 0 {
+                    Circle()
+                        .fill(Tokens.Colors.accent)
+                        .frame(width: 7, height: 7)
+                        .offset(x: 7, y: -2)
                 }
-                Text(item.title)
-                    .font(.system(size: 10, weight: .semibold, design: .rounded))
-                    .lineLimit(1)
             }
-            .foregroundStyle(isOn ? Tokens.Colors.accent : Tokens.Colors.quiet)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 7)
+            // Ink when selected, not accent: the coral is spent on the one
+            // floating button, and spending it twice makes neither read.
+            .foregroundStyle(isOn ? Tokens.Colors.ink : Tokens.Colors.quiet)
+            .frame(width: 54, height: 40)
             .background {
                 if isOn {
-                    Capsule().fill(Tokens.Colors.blockFill(Tokens.Colors.accent))
+                    Capsule().fill(Tokens.Colors.fill)
                 }
             }
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(item.title)
         .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : [.isButton])
     }
 }

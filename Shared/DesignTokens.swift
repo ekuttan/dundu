@@ -34,9 +34,10 @@ enum Tokens {
         /// Round chrome buttons in a header.
         static let headerButton: CGFloat = 38
         /// How much room the floating tab bar needs at the bottom of a
-        /// scroll view so the last row clears it — the bar itself, plus the
-        /// taller action stack beside it, plus a gap.
-        static let barInset: CGFloat = 124
+        /// scroll view so the last row clears it. Measured from the tallest
+        /// thing down there, which is the floating action button riding above
+        /// the row, not the pill itself.
+        static let barInset: CGFloat = 152
     }
 
     /// Shadows exist only under things that genuinely float — the tab bar,
