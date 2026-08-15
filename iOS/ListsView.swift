@@ -10,6 +10,8 @@ import DunduKit
 /// row is tinted — the only colour on the screen is the selected filter chip
 /// and red text for something that is late.
 struct ListsView: View {
+    /// Collapses the bar while the user is reading.
+    var barChrome: BarChrome?
     /// Settings is a sheet, opened from this screen's header — it isn't a
     /// destination worth a quarter of the tab bar.
     var onOpenSettings: () -> Void = {}
@@ -65,6 +67,7 @@ struct ListsView: View {
                 // outside one, and a hand-rolled drag gesture would forfeit
                 // full-swipe, haptics and the system's own spring.
                 List {
+                    ScrollProbe().plainRow()
                     if visibleReminders.isEmpty {
                         QuietEmptyState(
                             glyph: searchText.isEmpty ? "checkmark.circle" : "magnifyingglass",
@@ -111,6 +114,7 @@ struct ListsView: View {
                 .scrollContentBackground(.hidden)
                 .environment(\.defaultMinListRowHeight, 1)
                 .clearsFloatingBar()
+                .tracksScroll(barChrome)
             }
             .background(Tokens.Colors.ground)
             .toolbar(.hidden, for: .navigationBar)

@@ -16,6 +16,7 @@ struct RootView: View {
     @AppStorage("hasOnboarded") private var hasOnboarded = false
     @State private var showOnboarding = false
     @State private var showingQuickAdd = false
+    @State private var barChrome = BarChrome()
     /// Voice capture used to live in the Reminders header. It belongs with
     /// the other thing you *do*, in the corner stack, reachable from any tab.
     @State private var showingVoiceCapture = false
@@ -40,8 +41,11 @@ struct RootView: View {
                 tab(.today) {
                     TodayView(inboxCount: pendingReviews.count) { selectedTab = .inbox }
                 }
-                tab(.lists) { ListsView(onOpenSettings: { showingSettings = true }) }
-                tab(.inbox) { InboxView() }
+                tab(.lists) {
+                    ListsView(barChrome: barChrome,
+                              onOpenSettings: { showingSettings = true })
+                }
+                tab(.inbox) { InboxView(barChrome: barChrome) }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -55,7 +59,8 @@ struct RootView: View {
                 actions: [
                     .init(glyph: "mic.fill", title: "Record") { showingVoiceCapture = true },
                     .init(glyph: "plus", title: "Add", isPrimary: true) { showingQuickAdd = true },
-                ]
+                ],
+                chrome: barChrome
             )
         }
         .background(Tokens.Colors.ground)

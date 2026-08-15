@@ -8,6 +8,8 @@ import DunduKit
 /// Most pressing first: something already overdue with a pending question is
 /// the one worth answering now.
 struct InboxView: View {
+    /// Collapses the bar while the user is reading.
+    var barChrome: BarChrome?
     @Environment(\.modelContext) private var context
     @Query(
         filter: #Predicate<ReminderItem> {
@@ -41,6 +43,7 @@ struct InboxView: View {
 
             ScrollView {
                 LazyVStack(spacing: Tokens.Spacing.md) {
+                    ScrollProbe()
                     if pendingItems.isEmpty {
                         QuietEmptyState(
                             glyph: "tray",
@@ -62,6 +65,7 @@ struct InboxView: View {
                 .padding(.bottom, Tokens.Spacing.md)
             }
             .clearsFloatingBar()
+                .tracksScroll(barChrome)
         }
         .background(Tokens.Colors.ground)
         .sheet(item: $editingReminder) { ReminderEditView(existing: $0) }

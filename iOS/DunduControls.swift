@@ -305,42 +305,65 @@ struct DunduTabBar<Tab: Hashable>: View {
 
     /// Round buttons that sit in the bar's own row.
     private let actionSize: CGFloat = 52
-    /// The one floating action, deliberately bigger than everything else and
-    /// lifted clear of the bar.
-    private let primarySize: CGFloat = 62
+    /// The add button, kept larger than its neighbour so the row has an
+    /// obvious primary even though both sit on the same line.
+    private let primarySize: CGFloat = 60
 
+    /// Collapsed, only the primary survives — see `BarChrome`.
+    var chrome: BarChrome?
+
+    private var isCollapsed: Bool { chrome?.isCollapsed ?? false }
     private var secondary: [Action] { actions.filter { !$0.isPrimary } }
     private var primary: Action? { actions.first { $0.isPrimary } }
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: Tokens.Spacing.md) {
-            tabPill
-            ForEach(secondary) { action in
-                roundButton(action)
+        HStack(alignment: .center, spacing: Tokens.Spacing.md) {
+            if !isCollapsed {
+                tabPill
+                    .transition(.move(edge: .leading).combined(with: .opacity))
             }
+            Spacer(minLength: 0)
+            actionRow
         }
         .padding(.horizontal, Tokens.Layout.gutter)
         .padding(.bottom, Tokens.Spacing.sm)
-        // The primary action floats above the row rather than sitting in it,
-        // so the bar reads as navigation and the accent reads as the one
-        // thing you do. An overlay keeps its lift out of the layout.
-        .overlay(alignment: .bottomTrailing) {
+    }
+
+    /// The mic and the add button on one line, in one capsule, so they read as
+    /// a pair rather than two loose circles. Collapsed, the capsule shrinks to
+    /// the add button alone and the rest slides out behind it.
+    private var actionRow: some View {
+        HStack(spacing: 4) {
+            if !isCollapsed {
+                ForEach(secondary) { action in
+                    Button(action: action.perform) {
+                        Image(systemName: action.glyph)
+                            .font(.system(size: 19, weight: .semibold))
+                            .foregroundStyle(Tokens.Colors.ink)
+                            .frame(width: actionSize, height: actionSize)
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(PressableStyle())
+                    .accessibilityLabel(action.title)
+                    .transition(.scale.combined(with: .opacity))
+                }
+            }
+
             if let primary {
                 Button(action: primary.perform) {
                     Image(systemName: primary.glyph)
-                        .font(.system(size: 26, weight: .semibold))
+                        .font(.system(size: 24, weight: .semibold))
                         .foregroundStyle(.white)
                         .frame(width: primarySize, height: primarySize)
-                        .background(Circle().fill(Tokens.Colors.accentGradient))
-                        .dunduShadow(Tokens.Shadow.accent)
+                        .background(Circle().fill(Tokens.Colors.accent))
                         .contentShape(Circle())
                 }
                 .buttonStyle(PressableStyle())
                 .accessibilityLabel(primary.title)
-                .padding(.trailing, Tokens.Layout.gutter)
-                .padding(.bottom, actionSize + Tokens.Spacing.lg + Tokens.Spacing.sm)
             }
         }
+        .padding(isCollapsed ? 0 : 5)
+        .floatingSurface(Capsule())
     }
 
     private var tabPill: some View {
@@ -349,22 +372,6 @@ struct DunduTabBar<Tab: Hashable>: View {
         }
         .padding(6)
         .floatingSurface(Capsule())
-    }
-
-    /// Same material and height as the pill, so the row reads as one piece of
-    /// chrome broken into parts rather than a bar with something stuck to it.
-    private func roundButton(_ action: Action) -> some View {
-        Button(action: action.perform) {
-            Image(systemName: action.glyph)
-                .font(.system(size: 19, weight: .semibold))
-                .foregroundStyle(Tokens.Colors.ink)
-                .frame(width: actionSize, height: actionSize)
-                .contentShape(Circle())
-        }
-        .buttonStyle(PressableStyle())
-        .accessibilityLabel(action.title)
-        .background { Circle().fill(.clear) }
-        .floatingSurface(Circle())
     }
 
     /// Icons only. A label under every glyph is a second row of type
@@ -384,8 +391,8 @@ struct DunduTabBar<Tab: Hashable>: View {
                         .offset(x: 7, y: -2)
                 }
             }
-            // Ink when selected, not accent: the coral is spent on the one
-            // floating button, and spending it twice makes neither read.
+            // Ink when selected, not accent: the blue is spent on the add
+            // button, and spending it twice makes neither read.
             .foregroundStyle(isOn ? Tokens.Colors.ink : Tokens.Colors.quiet)
             .frame(width: 54, height: 40)
             .background {
