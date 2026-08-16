@@ -42,7 +42,7 @@ struct InboxView: View {
             )
 
             ScrollView {
-                LazyVStack(spacing: Tokens.Spacing.md) {
+                LazyVStack(spacing: 0) {
                     ScrollProbe()
                     if pendingItems.isEmpty {
                         QuietEmptyState(
@@ -124,9 +124,15 @@ struct InboxCard: View {
             }
             footer
         }
-        .padding(Tokens.Spacing.lg)
+        .padding(.horizontal, Tokens.Layout.gutter)
+        .padding(.vertical, Tokens.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .cardSurface()
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Tokens.Colors.hairline)
+                .frame(height: 1)
+                .padding(.horizontal, Tokens.Layout.gutter)
+        }
     }
 
     /// A tinted heading line saying where the item came from, then what it
@@ -137,8 +143,9 @@ struct InboxCard: View {
             CardHeader(
                 glyph: item.origin == .siriSuspected ? "mic.fill" : "tray",
                 title: item.origin == .siriSuspected ? "Dictated" : "Needs a check",
-                tint: isLate ? Tokens.Colors.overdue : Tokens.Colors.accent,
-                detail: item.dueDate.map { Formatters.relativeTime(to: $0) }
+                tint: Tokens.Colors.quiet,
+                detail: item.dueDate.map { Formatters.relativeTime(to: $0) },
+                detailTint: isLate ? Tokens.Colors.overdue : Tokens.Colors.quiet
             )
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.title)
@@ -185,10 +192,6 @@ struct InboxCard: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: Tokens.Spacing.sm) {
             HStack(alignment: .top, spacing: Tokens.Spacing.sm) {
-                Image(systemName: glyph)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Tokens.Colors.quiet)
-                    .frame(width: 16)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.system(size: 15, weight: .medium, design: .rounded))
@@ -217,10 +220,9 @@ struct InboxCard: View {
                 Button(action: onReject) {
                     Text(reject)
                         .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundStyle(Tokens.Colors.ink)
-                        .padding(.horizontal, Tokens.Spacing.lg)
+                        .foregroundStyle(Tokens.Colors.quiet)
+                        .padding(.horizontal, Tokens.Spacing.sm)
                         .padding(.vertical, Tokens.Spacing.sm + 2)
-                        .background(Capsule().fill(Tokens.Colors.fill))
                 }
                 .buttonStyle(PressableStyle())
             }

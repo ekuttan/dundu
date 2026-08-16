@@ -43,7 +43,7 @@ struct ListsView: View {
                 // Search and settings: the two things you reach for from the
                 // top of a screen. Adding and recording live in the corner
                 // stack on the tab bar instead.
-                CompactHeader {
+                ScreenHeader(title: Greeting.now(), subtitle: countLabel) {
                     HStack(spacing: Tokens.Spacing.sm) {
                         CircleButton(glyph: searching ? "xmark" : "magnifyingglass") {
                             withAnimation(Tokens.Anim.content) {

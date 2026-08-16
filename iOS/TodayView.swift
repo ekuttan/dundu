@@ -56,6 +56,7 @@ struct TodayView: View {
                 onToggle: toggle
             )
             .frame(maxHeight: .infinity)
+            .padding(.horizontal, Tokens.Layout.gutter)
 
             if isToday {
                 clock(now: now)
@@ -151,10 +152,10 @@ struct TodayView: View {
     private func clock(now: Date) -> some View {
         HStack(alignment: .lastTextBaseline, spacing: 2) {
             Text(Self.clockFormatter.string(from: now))
-                .font(Tokens.Typo.clock())
+                .font(Tokens.Typo.clock(44))
                 .foregroundStyle(Tokens.Colors.ink)
             Text(Self.meridiem(now))
-                .font(Tokens.Typo.clockSuffix)
+                .font(.system(size: 16, weight: .semibold, design: .rounded))
                 .foregroundStyle(Tokens.Colors.ink)
         }
         .monospacedDigit()

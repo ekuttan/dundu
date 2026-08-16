@@ -119,6 +119,9 @@ struct CardHeader: View {
     let title: String
     var tint: Color = Tokens.Colors.accent
     var detail: String?
+    /// Separate from `tint`: the heading can stay quiet while the detail
+    /// carries the one piece of urgency worth colouring.
+    var detailTint: Color = Tokens.Colors.quiet
     var showsChevron = false
 
     var body: some View {
@@ -133,7 +136,7 @@ struct CardHeader: View {
             if let detail {
                 Text(detail)
                     .font(Tokens.Typo.label)
-                    .foregroundStyle(Tokens.Colors.quiet)
+                    .foregroundStyle(detailTint)
             }
             if showsChevron {
                 Image(systemName: "chevron.right")
@@ -157,20 +160,9 @@ struct TrayChip: View {
 
     var body: some View {
         Button(action: onTap) {
+            // No checkbox here either: completing is a swipe on the list, and
+            // two ways to do one thing is one too many.
             HStack(spacing: Tokens.Spacing.sm) {
-                if let onToggle {
-                    Button(action: onToggle) {
-                        Image(systemName: isCompleted ? "checkmark.circle.fill" : "circle")
-                            .font(.system(size: 19, weight: .light))
-                            .foregroundStyle(isCompleted ? Tokens.Colors.hueDone : tint)
-                    }
-                    .buttonStyle(.plain)
-                } else {
-                    Image(systemName: glyph)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(tint)
-                }
-
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title)
                         .font(Tokens.Typo.blockTitle)
