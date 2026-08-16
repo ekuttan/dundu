@@ -43,7 +43,7 @@ struct ListsView: View {
                 // Search and settings: the two things you reach for from the
                 // top of a screen. Adding and recording live in the corner
                 // stack on the tab bar instead.
-                ScreenHeader(title: Greeting.now(), subtitle: countLabel) {
+                CompactHeader {
                     HStack(spacing: Tokens.Spacing.sm) {
                         CircleButton(glyph: searching ? "xmark" : "magnifyingglass") {
                             withAnimation(Tokens.Anim.content) {
@@ -95,8 +95,7 @@ struct ListsView: View {
                                     Text(reminder.title)
                                         .font(Tokens.Typo.blockTitle)
                                         .padding(Tokens.Spacing.sm)
-                                        .cardSurface(radius: Tokens.Radius.block)
-                                }
+                                                            }
                             }
                         } header: {
                             if selectedListID == nil, let list = group.list {
@@ -272,7 +271,7 @@ struct ListsView: View {
                 .monospacedDigit()
                 .foregroundStyle(Tokens.Colors.quiet)
         }
-        .padding(.horizontal, Tokens.Layout.gutter + Tokens.Spacing.xs)
+        .padding(.horizontal, Tokens.Layout.gutter)
         .padding(.top, Tokens.Spacing.lg)
         .padding(.bottom, Tokens.Spacing.sm)
     }
@@ -308,7 +307,7 @@ struct ListsView: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(Tokens.Colors.faint)
                 }
-                .padding(.horizontal, Tokens.Layout.gutter + Tokens.Spacing.xs)
+                .padding(.horizontal, Tokens.Layout.gutter)
                 .padding(.top, Tokens.Spacing.lg)
                 .padding(.bottom, Tokens.Spacing.sm)
                 .contentShape(Rectangle())
@@ -371,16 +370,6 @@ struct ReminderRow: View {
     var body: some View {
         Button(action: onTap) {
             HStack(alignment: .top, spacing: Tokens.Spacing.md) {
-                Button(action: toggle) {
-                    Image(systemName: reminder.isCompleted ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 22, weight: .light))
-                        .foregroundStyle(
-                            reminder.isCompleted ? Tokens.Colors.quiet
-                                : (isLate ? Tokens.Colors.overdue : Tokens.Colors.faint)
-                        )
-                }
-                .buttonStyle(.plain)
-
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: Tokens.Spacing.xs) {
                         if reminder.priority == .high && !reminder.isCompleted {
@@ -416,11 +405,10 @@ struct ReminderRow: View {
 
                 Spacer(minLength: Tokens.Spacing.sm)
             }
-            .padding(.horizontal, Tokens.Spacing.lg)
+            .padding(.horizontal, Tokens.Layout.gutter)
             .padding(.vertical, Tokens.Spacing.md + 2)
             .frame(minHeight: 62)
             .contentShape(Rectangle())
-            .cardSurface(radius: Tokens.Radius.block)
         }
         .buttonStyle(.plain)
         // Right: the one action worth a thoughtless flick.

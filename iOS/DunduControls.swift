@@ -303,11 +303,11 @@ struct DunduTabBar<Tab: Hashable>: View {
     let items: [Item]
     var actions: [Action] = []
 
-    /// Round buttons that sit in the bar's own row.
-    private let actionSize: CGFloat = 52
-    /// The add button, kept larger than its neighbour so the row has an
-    /// obvious primary even though both sit on the same line.
-    private let primarySize: CGFloat = 60
+    /// Both capsules are `Tokens.Layout.barHeight` tall. Inside them the
+    /// round targets are that height less the capsule's own padding, so the
+    /// tab pill and the action capsule line up exactly.
+    private let capsulePadding: CGFloat = 5
+    private var actionSize: CGFloat { Tokens.Layout.barHeight - capsulePadding * 2 }
 
     /// Collapsed, only the primary survives — see `BarChrome`.
     var chrome: BarChrome?
@@ -352,9 +352,9 @@ struct DunduTabBar<Tab: Hashable>: View {
             if let primary {
                 Button(action: primary.perform) {
                     Image(systemName: primary.glyph)
-                        .font(.system(size: 24, weight: .semibold))
+                        .font(.system(size: 22, weight: .semibold))
                         .foregroundStyle(.white)
-                        .frame(width: primarySize, height: primarySize)
+                        .frame(width: actionSize, height: actionSize)
                         .background(Circle().fill(Tokens.Colors.accent))
                         .contentShape(Circle())
                 }
@@ -362,7 +362,8 @@ struct DunduTabBar<Tab: Hashable>: View {
                 .accessibilityLabel(primary.title)
             }
         }
-        .padding(isCollapsed ? 0 : 5)
+        .padding(capsulePadding)
+        .frame(height: Tokens.Layout.barHeight)
         .floatingSurface(Capsule())
     }
 
@@ -370,7 +371,8 @@ struct DunduTabBar<Tab: Hashable>: View {
         HStack(spacing: 2) {
             ForEach(items) { tabButton($0) }
         }
-        .padding(6)
+        .padding(capsulePadding)
+        .frame(height: Tokens.Layout.barHeight)
         .floatingSurface(Capsule())
     }
 
@@ -394,7 +396,7 @@ struct DunduTabBar<Tab: Hashable>: View {
             // Ink when selected, not accent: the blue is spent on the add
             // button, and spending it twice makes neither read.
             .foregroundStyle(isOn ? Tokens.Colors.ink : Tokens.Colors.quiet)
-            .frame(width: 54, height: 40)
+            .frame(width: 52, height: actionSize)
             .background {
                 if isOn {
                     Capsule().fill(Tokens.Colors.fill)
@@ -464,5 +466,24 @@ extension View {
         )
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
+    }
+}
+
+/// A header with no title — just the round actions, right-aligned.
+///
+/// The screens that carry one big title use `ScreenHeader`. On the reminders
+/// list the items are the content and a greeting above them was one more
+/// thing to read before getting to them.
+struct CompactHeader<Trailing: View>: View {
+    @ViewBuilder var trailing: Trailing
+
+    var body: some View {
+        HStack {
+            Spacer()
+            trailing
+        }
+        .padding(.horizontal, Tokens.Layout.gutter)
+        .padding(.top, Tokens.Spacing.sm)
+        .padding(.bottom, Tokens.Spacing.md)
     }
 }

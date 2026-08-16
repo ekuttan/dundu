@@ -33,6 +33,10 @@ enum Tokens {
         static let control: CGFloat = 44
         /// Round chrome buttons in a header.
         static let headerButton: CGFloat = 38
+        /// Every element of the floating bar is this tall — the tab pill and
+        /// the action capsule beside it. They sat at different heights and
+        /// read as unrelated pieces.
+        static let barHeight: CGFloat = 56
         /// How much room the floating tab bar needs at the bottom of a
         /// scroll view so the last row clears it. Measured from the tallest
         /// thing down there, which is the floating action button riding above
@@ -50,8 +54,8 @@ enum Tokens {
             var y: CGFloat
         }
 
-        static let floating = Spec(color: .black.opacity(0.14), radius: 18, y: 6)
-        static let accent = Spec(color: .black.opacity(0.18), radius: 10, y: 4)
+        static let floating = Spec(color: .black.opacity(0.07), radius: 10, y: 3)
+        static let accent = Spec(color: .black.opacity(0.10), radius: 8, y: 3)
     }
 
     enum Anim {
@@ -95,12 +99,10 @@ enum Tokens {
         static let dueSoon = Color.orange
         static let meeting = Color.blue
 
-        /// The ground everything sits on — soft grey in light, near-black in
-        /// dark, so white cards read as raised without a border.
-        static let ground = Color.adaptive(
-            light: Color(red: 0.949, green: 0.949, blue: 0.965),
-            dark: Color(white: 0.06)
-        )
+        /// The ground everything sits on. White, and the same white as a
+        /// card: content is separated by space, not by a change of surface.
+        /// A list of reminders reads as one page rather than a stack of tiles.
+        static let ground = Color.adaptive(light: .white, dark: Color(white: 0.07))
         /// A card: the surface content actually lives on.
         static let card = Color.adaptive(light: .white, dark: Color(white: 0.13))
         /// A quieter fill used *inside* a card, and for chrome buttons —
