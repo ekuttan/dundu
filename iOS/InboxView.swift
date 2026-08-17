@@ -124,14 +124,12 @@ struct InboxCard: View {
             }
             footer
         }
-        .padding(.horizontal, Tokens.Layout.gutter)
         .padding(.vertical, Tokens.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
         .overlay(alignment: .bottom) {
             Rectangle()
                 .fill(Tokens.Colors.hairline)
                 .frame(height: 1)
-                .padding(.horizontal, Tokens.Layout.gutter)
         }
     }
 
@@ -226,7 +224,6 @@ struct InboxCard: View {
                 }
                 .buttonStyle(PressableStyle())
             }
-            .padding(.leading, 24)
         }
     }
 }
