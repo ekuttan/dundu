@@ -144,7 +144,11 @@ struct MenuBarView: View {
                 }
                 }
                 }
-                .frame(maxHeight: 260)
+                // A definite height, not just a cap. The popover sizes
+                // itself to its content, and a ScrollView has no height of
+                // its own — with only a maxHeight it collapses to nothing and
+                // the rows never draw, even though the list is full.
+                .frame(height: listHeight)
             }
 
             Divider()
@@ -254,6 +258,14 @@ extension MenuBarView {
                 .monospacedDigit()
                 .foregroundStyle(Tokens.Colors.faint)
         }
+    }
+
+    /// Tall enough for what is there, capped so the popover stays a popover.
+    private var listHeight: CGFloat {
+        let row: CGFloat = 38
+        let spacing = Tokens.Spacing.sm
+        let content = CGFloat(visibleReminders.count) * (row + spacing)
+        return min(max(content, row), 260)
     }
 
     private var visibleReminders: [ReminderItem] {
