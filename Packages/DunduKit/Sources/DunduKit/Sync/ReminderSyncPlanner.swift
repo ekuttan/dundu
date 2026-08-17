@@ -73,6 +73,10 @@ public enum ReminderSyncPlanner {
         public var refreshes: [(localID: UUID, remote: RemoteState)]
         /// Mappings whose local item vanished entirely (purged): drop.
         public var orphanedMappingIDs: [UUID]
+        /// A local item and a remote item that are the same reminder, meeting
+        /// for the first time. Recording the mapping is the whole action —
+        /// nothing is written to either side.
+        public var adoptions: [(localID: UUID, remote: RemoteState)] = []
 
         public static func == (lhs: Plan, rhs: Plan) -> Bool {
             lhs.remoteChanges == rhs.remoteChanges
@@ -80,10 +84,13 @@ public enum ReminderSyncPlanner {
                 && lhs.refreshes.map(\.localID) == rhs.refreshes.map(\.localID)
                 && lhs.refreshes.map(\.remote) == rhs.refreshes.map(\.remote)
                 && lhs.orphanedMappingIDs == rhs.orphanedMappingIDs
+                && lhs.adoptions.map(\.localID) == rhs.adoptions.map(\.localID)
+                && lhs.adoptions.map(\.remote) == rhs.adoptions.map(\.remote)
         }
 
         public var isEmpty: Bool {
-            remoteChanges.isEmpty && localWrites.isEmpty && orphanedMappingIDs.isEmpty
+            remoteChanges.isEmpty && localWrites.isEmpty
+                && orphanedMappingIDs.isEmpty && adoptions.isEmpty
         }
     }
 
@@ -204,8 +211,40 @@ public enum ReminderSyncPlanner {
             }
         }
 
-        // Local only, no mapping: create in EventKit.
-        for local in locals where !mappedLocalIDs.contains(local.localID) && !local.isTombstoned {
+        // An unmapped local and an unmapped remote can be the same reminder
+        // that simply hasn't been introduced to itself yet. This device
+        // received the item over CloudKit from the device that created it and
+        // already pushed it; without pairing them here, the two loops below
+        // both fire — a second EKReminder gets created *and* a second local
+        // item is ingested. That is the duplicate engine.
+        //
+        // Pairing needs identical payloads, which is what an echo looks like:
+        // same title, list, due date and completion. Anything less exact is
+        // left alone and handled as two items, because joining two records
+        // that are not the same reminder silently loses one of them.
+        var unmappedLocals = locals.filter {
+            !mappedLocalIDs.contains($0.localID) && !$0.isTombstoned
+        }
+        var unmappedRemotes = remotesByExternalID.values.filter {
+            !mappedExternalIDs.contains($0.externalID)
+        }
+        var adoptedLocalIDs: Set<UUID> = []
+        var adoptedExternalIDs: Set<String> = []
+
+        for local in unmappedLocals {
+            guard let match = unmappedRemotes.first(where: {
+                !adoptedExternalIDs.contains($0.externalID) && $0.payload == local.payload
+            }) else { continue }
+            plan.adoptions.append((localID: local.localID, remote: match))
+            adoptedLocalIDs.insert(local.localID)
+            adoptedExternalIDs.insert(match.externalID)
+        }
+
+        unmappedLocals.removeAll { adoptedLocalIDs.contains($0.localID) }
+        unmappedRemotes.removeAll { adoptedExternalIDs.contains($0.externalID) }
+
+        // Local only, genuinely absent remotely: create in EventKit.
+        for local in unmappedLocals {
             plan.remoteChanges.append(PlannedReminderChange(
                 localID: local.localID,
                 action: .create,
@@ -214,8 +253,8 @@ public enum ReminderSyncPlanner {
             ))
         }
 
-        // Remote only, no mapping: create locally.
-        for remote in remotesByExternalID.values where !mappedExternalIDs.contains(remote.externalID) {
+        // Remote only, genuinely absent locally: create locally.
+        for remote in unmappedRemotes {
             plan.localWrites.append(.createFromRemote(remote))
         }
 

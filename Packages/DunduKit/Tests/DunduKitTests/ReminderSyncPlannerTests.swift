@@ -261,3 +261,99 @@ struct ReminderSyncPlannerTests {
         #expect(merged.isCompleted)
     }
 }
+
+// MARK: - The echo
+
+/// The duplicate engine, pinned.
+///
+/// Device A creates a reminder and pushes it to EventKit, recording its own
+/// mapping. CloudKit replicates the *item* to device B, which has no mapping
+/// for it. On device B the item is an unmapped local and device A's push is
+/// an unmapped remote — and before this, the planner's two independent loops
+/// both fired: push a second EKReminder, and ingest a second local copy.
+/// Observed live as three "Proposal to Kalpa" rows created minutes apart.
+@Suite("Sync planning — the push/ingest echo")
+struct ReminderEchoTests {
+    let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+    private func payload(_ title: String, completed: Bool = false) -> ReminderWritePayload {
+        ReminderWritePayload(title: title, notes: nil, isCompleted: completed)
+    }
+
+    private func local(_ payload: ReminderWritePayload, id: UUID = UUID()) -> ReminderPushPlanner.ItemState {
+        ReminderPushPlanner.ItemState(
+            localID: id, isTombstoned: false, modifiedAt: now, payload: payload
+        )
+    }
+
+    private func remote(_ externalID: String, _ payload: ReminderWritePayload) -> ReminderSyncPlanner.RemoteState {
+        ReminderSyncPlanner.RemoteState(
+            externalID: externalID, lastModified: now, payload: payload
+        )
+    }
+
+    @Test func anUnmappedPairIsIntroducedRatherThanDuplicated() {
+        let item = local(payload("Proposal to Kalpa"))
+        let echo = remote("ek-1", payload("Proposal to Kalpa"))
+        let plan = ReminderSyncPlanner.plan(locals: [item], remotes: [echo], mappings: [], now: now)
+
+        #expect(plan.adoptions.count == 1)
+        #expect(plan.adoptions.first?.localID == item.localID)
+        #expect(plan.adoptions.first?.remote.externalID == "ek-1")
+        // Neither side gets a second copy.
+        #expect(plan.remoteChanges.isEmpty)
+        #expect(plan.localWrites.isEmpty)
+    }
+
+    /// Same title but genuinely different content is two reminders. Joining
+    /// them would silently discard one, which is worse than a duplicate.
+    @Test func differingPayloadsAreStillTwoReminders() {
+        let item = local(payload("Proposal to Kalpa"))
+        let other = remote("ek-2", payload("Proposal to Kalpa", completed: true))
+        let plan = ReminderSyncPlanner.plan(locals: [item], remotes: [other], mappings: [], now: now)
+
+        #expect(plan.adoptions.isEmpty)
+        #expect(plan.remoteChanges.map(\.action) == [.create])
+        #expect(plan.localWrites.count == 1)
+    }
+
+    /// One remote can only be claimed once, or two local copies both adopt it
+    /// and the second silently loses its own identity.
+    @Test func oneRemoteIsAdoptedByOnlyOneLocal() {
+        let first = local(payload("Brush"))
+        let second = local(payload("Brush"))
+        let echo = remote("ek-3", payload("Brush"))
+        let plan = ReminderSyncPlanner.plan(locals: [first, second], remotes: [echo], mappings: [], now: now)
+
+        #expect(plan.adoptions.count == 1)
+        // The one left over is a real local-only item and still gets pushed.
+        #expect(plan.remoteChanges.map(\.action) == [.create])
+    }
+
+    @Test func aLocalWithNoRemoteCounterpartStillPushes() {
+        let item = local(payload("Only here"))
+        let plan = ReminderSyncPlanner.plan(locals: [item], remotes: [], mappings: [], now: now)
+        #expect(plan.adoptions.isEmpty)
+        #expect(plan.remoteChanges.map(\.action) == [.create])
+    }
+
+    @Test func aRemoteWithNoLocalCounterpartStillIngests() {
+        let incoming = remote("ek-4", payload("From Reminders"))
+        let plan = ReminderSyncPlanner.plan(locals: [], remotes: [incoming], mappings: [], now: now)
+        #expect(plan.adoptions.isEmpty)
+        #expect(plan.localWrites.count == 1)
+    }
+
+    /// A tombstoned local must not adopt anything — it is on its way out.
+    @Test func aTombstonedLocalDoesNotAdopt() {
+        var item = local(payload("Going away"))
+        item = ReminderPushPlanner.ItemState(
+            localID: item.localID, isTombstoned: true, modifiedAt: now, payload: item.payload
+        )
+        let echo = remote("ek-5", payload("Going away"))
+        let plan = ReminderSyncPlanner.plan(locals: [item], remotes: [echo], mappings: [], now: now)
+
+        #expect(plan.adoptions.isEmpty)
+        #expect(plan.localWrites.count == 1)
+    }
+}

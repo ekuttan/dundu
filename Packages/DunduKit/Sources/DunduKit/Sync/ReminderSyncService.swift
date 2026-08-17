@@ -111,6 +111,22 @@ public enum ReminderSyncService {
 
         let plan = ReminderSyncPlanner.plan(locals: locals, remotes: remotes, mappings: mappingViews, now: now)
 
+        // 4b. Introductions first: a local item and a remote item that are
+        // the same reminder get a mapping and nothing else. This has to run
+        // before the pushes below, or the same item is created remotely a
+        // second time in this very pass.
+        for adoption in plan.adoptions {
+            let mapping = try context.upsertMapping(
+                localID: adoption.localID, bridgeID: .eventkit,
+                externalID: adoption.remote.externalID
+            )
+            mapping.localID = adoption.localID
+            mapping.remoteModifiedAt = adoption.remote.lastModified
+            mapping.lastSyncedAt = now
+            mapping.baseSnapshot = try? JSONEncoder().encode(adoption.remote.payload)
+        }
+        if !plan.adoptions.isEmpty { try context.save() }
+
         // 5. Remote writes in one batch commit.
         if !plan.remoteChanges.isEmpty {
             let results = await bridge.apply(plan.remoteChanges)

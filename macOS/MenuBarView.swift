@@ -7,7 +7,7 @@ import DunduKit
 struct MenuBarView: View {
     @Environment(\.modelContext) private var context
     @Query(
-        filter: #Predicate<ReminderItem> { $0.tombstonedAt == nil && !$0.isCompleted },
+        filter: #Predicate<ReminderItem> { $0.tombstonedAt == nil },
         sort: \ReminderItem.sortOrder
     ) private var openReminders: [ReminderItem]
 
@@ -98,8 +98,12 @@ struct MenuBarView: View {
             .padding(Tokens.Spacing.md)
             .cardSurface(Tokens.Colors.fill, radius: Tokens.Radius.chip)
 
-            if openReminders.isEmpty {
-                Text("All clear")
+            listHeading
+
+            if visibleReminders.isEmpty {
+                Text(openReminders.isEmpty
+                     ? "Nothing in the store yet"
+                     : "All clear — \(openReminders.count) completed")
                     .font(Tokens.Typo.label)
                     .foregroundStyle(Tokens.Colors.quiet)
                     .frame(maxWidth: .infinity, alignment: .center)
@@ -237,8 +241,23 @@ struct MenuBarView: View {
 extension MenuBarView {
     /// Due-soonest first, then newest — a just-added item is always visible,
     /// and the whole list scrolls instead of cutting off at five.
+    /// A count the eye can check against reality. When this says 0 and Apple
+    /// Reminders is full, the problem is the store, not the view.
+    private var listHeading: some View {
+        HStack {
+            Text("Reminders")
+                .font(Tokens.Typo.caption)
+                .foregroundStyle(Tokens.Colors.quiet)
+            Spacer()
+            Text("\(visibleReminders.count) open · \(openReminders.count) total")
+                .font(Tokens.Typo.caption)
+                .monospacedDigit()
+                .foregroundStyle(Tokens.Colors.faint)
+        }
+    }
+
     private var visibleReminders: [ReminderItem] {
-        openReminders.sorted {
+        openReminders.filter { !$0.isCompleted }.sorted {
             let a = $0.dueDate ?? .distantFuture
             let b = $1.dueDate ?? .distantFuture
             if a != b { return a < b }
