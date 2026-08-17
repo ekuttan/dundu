@@ -53,7 +53,8 @@ struct TodayView: View {
                 now: shownDate(now: now),
                 isToday: isToday,
                 onTap: open,
-                onToggle: toggle
+                onToggle: toggle,
+                onEdit: edit
             )
             .frame(maxHeight: .infinity)
             .padding(.horizontal, Tokens.Layout.gutter)
@@ -385,11 +386,26 @@ struct TodayView: View {
 
     // MARK: - Mutations
 
+    /// A meeting you can join is a thing you join. Tapping it opens the call
+    /// rather than a form about the call — the edit sheet is still there on a
+    /// long press, where the rarer intent belongs.
     private func open(_ entry: TimelineEntry) {
         if let reminder = reminders.first(where: { $0.id == entry.id }) {
             editingReminder = reminder
         } else if let event = events.first(where: { $0.id == entry.id }) {
+            if let url = event.conferenceURL {
+                UIApplication.shared.open(url)
+            } else {
+                editingEvent = event
+            }
+        }
+    }
+
+    private func edit(_ entry: TimelineEntry) {
+        if let event = events.first(where: { $0.id == entry.id }) {
             editingEvent = event
+        } else if let reminder = reminders.first(where: { $0.id == entry.id }) {
+            editingReminder = reminder
         }
     }
 

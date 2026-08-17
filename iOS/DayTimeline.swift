@@ -34,6 +34,8 @@ struct DayTimeline: View {
     var isToday = true
     var onTap: (TimelineEntry) -> Void
     var onToggle: (TimelineEntry) -> Void
+    /// Tapping a meeting joins it, so editing moves to a long press.
+    var onEdit: (TimelineEntry) -> Void = { _ in }
 
     /// One hour of wall clock. Tall enough that a 30-minute meeting is still
     /// a readable block rather than a stripe.
@@ -56,7 +58,8 @@ struct DayTimeline: View {
                             TimelineBlock(
                                 entry: placement.entry,
                                 onTap: { onTap(placement.entry) },
-                                onToggle: { onToggle(placement.entry) }
+                                onToggle: { onToggle(placement.entry) },
+                                onEdit: { onEdit(placement.entry) }
                             )
                             .frame(width: placement.width, height: placement.height)
                             .offset(x: railWidth + placement.x, y: placement.y)
@@ -200,6 +203,7 @@ struct TimelineBlock: View {
     let entry: TimelineEntry
     let onTap: () -> Void
     let onToggle: () -> Void
+    var onEdit: () -> Void = {}
 
     var body: some View {
         Button(action: onTap) {
@@ -230,6 +234,9 @@ struct TimelineBlock: View {
             .opacity(entry.isCompleted ? 0.55 : 1)
         }
         .buttonStyle(PressableStyle())
+        .contextMenu {
+            Button("Edit", systemImage: "pencil", action: onEdit)
+        }
         .overlay(alignment: .topTrailing) {
             if entry.kind == .reminder {
                 Button(action: onToggle) {
