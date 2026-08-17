@@ -207,10 +207,12 @@ public enum ReminderSyncService {
         }
 
         try context.purgeExpiredTombstones(now: now)
-        // Two devices each mint their own local record for the same
-        // EKReminder, and CloudKit then replicates both. Syncing is what
-        // creates the duplicates, so syncing is where they get collapsed.
-        try context.deduplicateReminders(now: now)
+        // Deduplication deliberately does NOT run here. It tombstones, and
+        // tombstones become deletions in Apple Reminders — an automatic
+        // destructive pass that has twice mistaken real reminders for copies
+        // and taken hundreds of them with it. It is a deliberate action the
+        // user asks for and can see the result of, not something that happens
+        // quietly on a timer. See `deduplicateReminders`.
         try context.save()
 
         // 8. Intelligence on ingest (spec §9 trigger 1): every new remote
