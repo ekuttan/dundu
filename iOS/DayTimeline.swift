@@ -126,7 +126,7 @@ struct DayTimeline: View {
     private func nowRule(width: CGFloat) -> some View {
         HStack(spacing: Tokens.Spacing.sm) {
             Text("NOW")
-                .font(.system(size: 10, weight: .heavy, design: .rounded))
+                .font(.system(size: 10, weight: .heavy))
                 .tracking(0.8)
                 .foregroundStyle(Tokens.Colors.ink)
                 .frame(width: railWidth - Tokens.Spacing.sm, alignment: .leading)
@@ -219,7 +219,7 @@ struct TimelineBlock: View {
                     .multilineTextAlignment(.leading)
                 if let subtitle = entry.subtitle {
                     Text(subtitle)
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(Tokens.Colors.quiet)
                         .lineLimit(1)
                 }

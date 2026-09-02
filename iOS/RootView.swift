@@ -65,9 +65,8 @@ struct RootView: View {
         }
         .background(Tokens.Colors.ground)
         // Set once, at the root: sheets inherit the environment, so every
-        // stock control down to a date picker comes out rounded and coral
-        // without each screen restating it.
-        .fontDesign(.rounded)
+        // stock control down to a date picker picks up the accent without
+        // each screen restating it.
         .tint(Tokens.Colors.accent)
         .onAppear {
             showOnboarding = !hasOnboarded

@@ -176,7 +176,6 @@ struct MenuBarView: View {
         .padding(Tokens.Spacing.lg)
         .frame(width: 320)
         .background(Tokens.Colors.ground)
-        .fontDesign(.rounded)
         .task {
             accessStatus = EventKitBridge.accessStatus()
             // Opening the menu is a request to see what's true now, and this

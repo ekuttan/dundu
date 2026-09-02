@@ -156,7 +156,7 @@ struct TodayView: View {
                 .font(Tokens.Typo.clock(44))
                 .foregroundStyle(Tokens.Colors.ink)
             Text(Self.meridiem(now))
-                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(Tokens.Colors.ink)
         }
         .monospacedDigit()

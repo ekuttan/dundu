@@ -162,14 +162,14 @@ struct InboxCard: View {
     private var footer: some View {
         HStack {
             Button("Edit", action: onEdit)
-                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(Tokens.Colors.quiet)
             Spacer()
             Button("Dismiss") {
                 context.dismissAllReviews(item)
                 afterAction()
             }
-            .font(.system(size: 13, weight: .medium, design: .rounded))
+            .font(.system(size: 13, weight: .medium))
             .foregroundStyle(Tokens.Colors.quiet)
         }
         .buttonStyle(.plain)
@@ -192,12 +192,12 @@ struct InboxCard: View {
             HStack(alignment: .top, spacing: Tokens.Spacing.sm) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.system(size: 15, weight: .medium, design: .rounded))
+                        .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(Tokens.Colors.ink)
                         .fixedSize(horizontal: false, vertical: true)
                     if let detail {
                         Text(detail)
-                            .font(.system(size: 12, weight: .regular, design: .rounded))
+                            .font(.system(size: 12, weight: .regular))
                             .foregroundStyle(Tokens.Colors.quiet)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -207,7 +207,7 @@ struct InboxCard: View {
             HStack(spacing: Tokens.Spacing.sm) {
                 Button(action: onAccept) {
                     Text(accept)
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(Tokens.Colors.card)
                         .padding(.horizontal, Tokens.Spacing.lg)
                         .padding(.vertical, Tokens.Spacing.sm + 2)
@@ -217,7 +217,7 @@ struct InboxCard: View {
 
                 Button(action: onReject) {
                     Text(reject)
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(Tokens.Colors.quiet)
                         .padding(.horizontal, Tokens.Spacing.sm)
                         .padding(.vertical, Tokens.Spacing.sm + 2)

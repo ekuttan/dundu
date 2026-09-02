@@ -84,7 +84,7 @@ struct VoiceCaptureView: View {
 
             ScrollView {
                 Text(recorder.transcript.isEmpty ? Self.prompt : recorder.transcript)
-                    .font(.system(size: 22, weight: .medium, design: .rounded))
+                    .font(.system(size: 22, weight: .medium))
                     .foregroundStyle(
                         recorder.transcript.isEmpty ? Tokens.Colors.quiet : Tokens.Colors.ink
                     )
@@ -130,7 +130,7 @@ struct VoiceCaptureView: View {
     private var listHints: some View {
         VStack(alignment: .leading, spacing: Tokens.Spacing.sm) {
             Text("Try saying “add it to …”")
-                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(Tokens.Colors.quiet)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: Tokens.Spacing.sm) {
@@ -380,7 +380,7 @@ struct VoiceCaptureView: View {
                     "\(card.locationProximity.wrappedValue == "leave" ? "Leaving" : "Arriving"): \(place)",
                     systemImage: "mappin"
                 )
-                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Tokens.Colors.hueTravel)
             }
         }

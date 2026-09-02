@@ -69,29 +69,31 @@ enum Tokens {
         static let chrome = Animation.spring(response: 0.28, dampingFraction: 0.9)
     }
 
-    /// Type scale. Everything is SF Rounded — the reference's warmth comes
-    /// mostly from this one choice. The screen title is deliberately much
-    /// larger than anything under it: on these screens the title is the only
-    /// piece of navigation there is.
+    /// Type scale, in the system font. SF Rounded was chosen for an earlier,
+    /// warmer language; the app now follows the system apps, and rounded type
+    /// beside stock controls reads as a different app pasted in.
+    ///
+    /// The screen title is deliberately much larger than anything under it: on
+    /// these screens the title is the only piece of navigation there is.
     enum Typo {
         static func clock(_ size: CGFloat = 64) -> Font {
-            .system(size: size, weight: .bold, design: .rounded)
+            .system(size: size, weight: .bold)
         }
-        static let clockSuffix = Font.system(size: 22, weight: .semibold, design: .rounded)
+        static let clockSuffix = Font.system(size: 22, weight: .semibold)
         /// The one big title at the top of a screen.
-        static let largeTitle = Font.system(size: 34, weight: .bold, design: .rounded)
+        static let largeTitle = Font.system(size: 34, weight: .bold)
         /// Titles inside sheets and other secondary surfaces.
-        static let screenTitle = Font.system(size: 20, weight: .bold, design: .rounded)
+        static let screenTitle = Font.system(size: 20, weight: .bold)
         /// The coloured heading line of a card.
-        static let cardTitle = Font.system(size: 17, weight: .semibold, design: .rounded)
+        static let cardTitle = Font.system(size: 17, weight: .semibold)
         /// A section heading over a group of cards.
-        static let sectionTitle = Font.system(size: 15, weight: .semibold, design: .rounded)
-        static let blockTitle = Font.system(size: 13, weight: .semibold, design: .rounded)
-        static let body = Font.system(size: 16, weight: .medium, design: .rounded)
-        static let label = Font.system(size: 13, weight: .medium, design: .rounded)
-        static let caption = Font.system(size: 12, weight: .medium, design: .rounded)
+        static let sectionTitle = Font.system(size: 15, weight: .semibold)
+        static let blockTitle = Font.system(size: 13, weight: .semibold)
+        static let body = Font.system(size: 16, weight: .medium)
+        static let label = Font.system(size: 13, weight: .medium)
+        static let caption = Font.system(size: 12, weight: .medium)
         /// Hour rail: small, wide-tracked, deliberately quiet.
-        static let rail = Font.system(size: 10, weight: .semibold, design: .rounded)
+        static let rail = Font.system(size: 10, weight: .semibold)
     }
 
     enum Colors {

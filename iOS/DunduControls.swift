@@ -77,7 +77,7 @@ struct CircleButton: View {
                     }
                 if badge > 0 {
                     Text("\(min(badge, 99))")
-                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 1)
@@ -171,7 +171,7 @@ struct TrayChip: View {
                         .lineLimit(1)
                     if let detail {
                         Text(detail)
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(tint)
                             .lineLimit(1)
                     }
@@ -224,7 +224,7 @@ struct PillButton: View {
                         .font(.system(size: 15, weight: .semibold))
                 }
                 Text(title)
-                    .font(.system(size: 17, weight: .semibold, design: .rounded))
+                    .font(.system(size: 17, weight: .semibold))
             }
             .foregroundStyle(style.foreground)
             .padding(.horizontal, Tokens.Spacing.xl + 4)

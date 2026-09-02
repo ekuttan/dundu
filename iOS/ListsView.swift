@@ -176,7 +176,7 @@ struct ListsView: View {
             }
         } label: {
             Text(title)
-                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(isOn ? colour : Tokens.Colors.quiet)
                 .padding(.horizontal, Tokens.Spacing.md + 2)
                 .padding(.vertical, 8)
@@ -374,7 +374,7 @@ struct ReminderRow: View {
                     HStack(spacing: Tokens.Spacing.xs) {
                         if reminder.priority == .high && !reminder.isCompleted {
                             Text("!!")
-                                .font(.system(size: 14, weight: .bold, design: .rounded))
+                                .font(.system(size: 14, weight: .bold))
                                 .foregroundStyle(Tokens.Colors.overdue)
                         }
                         Text(reminder.title)
@@ -387,7 +387,7 @@ struct ReminderRow: View {
                     }
                     if let notes = reminder.notes, !notes.isEmpty {
                         Text(notes)
-                            .font(.system(size: 13, weight: .regular, design: .rounded))
+                            .font(.system(size: 13, weight: .regular))
                             .foregroundStyle(Tokens.Colors.quiet)
                             .lineLimit(1)
                     }
