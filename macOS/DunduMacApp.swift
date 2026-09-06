@@ -42,6 +42,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NotchPanel.shared = controller
             controller.start()
 
+            // Observe Apple edits while the menu-bar app is running, just
+            // like iOS. Polling alone left removed duplicates visible until
+            // the next five-minute tick or app activation.
+            let reminderChanges = await ReminderSyncService.bridge.observeChanges()
+            Task { @MainActor in
+                for await _ in reminderChanges {
+                    do { try await Task.sleep(for: ReminderSyncService.changeDebounce) }
+                    catch { return }
+                    await ReminderSyncService.syncNow(context: ModelContext(MacStores.container))
+                    controller.refresh()
+                }
+            }
+
             // Ask at launch, not on first menu-bar open — the dialog should
             // greet the user, not hide until they find the icon.
             if EventKitBridge.accessStatus() == .notDetermined {

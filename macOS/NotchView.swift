@@ -29,7 +29,7 @@ struct NotchView: View {
             ? .opacity
             : .move(edge: .top)
                 .combined(with: .opacity)
-                .combined(with: .scale(scale: 0.85, anchor: .top))
+                .combined(with: .scale(scale: 0.97, anchor: .top))
     }
 
     var body: some View {
@@ -286,7 +286,9 @@ private struct NotchRow: View {
                 }
             }
         }
+        .padding(.horizontal, Tokens.Spacing.sm)
         .padding(.vertical, Tokens.Spacing.xs)
-        .animation(.default, value: isPendingUndo)
+        .background(Color.white.opacity(0.065), in: RoundedRectangle(cornerRadius: 8))
+        .animation(.easeOut(duration: 0.15), value: isPendingUndo)
     }
 }

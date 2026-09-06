@@ -57,6 +57,7 @@ extension ModelContext {
     /// sync. Purge runs separately after 30 days.
     public func tombstone(_ item: ReminderItem, at date: Date = Date()) {
         item.tombstonedAt = date
+        item.eventKitDeletionRequestedAt = date
         item.modifiedAt = date
     }
 

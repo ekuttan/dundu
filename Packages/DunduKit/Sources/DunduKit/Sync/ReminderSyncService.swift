@@ -75,6 +75,11 @@ public enum ReminderSyncService {
         )
         let defaultListExternalID = try context.defaultList().externalID
 
+        try context.reconcileReminderIdentities(
+            snapshots: snapshots, listExternalIDs: listExternalIDs,
+            fallback: defaultListExternalID, now: now
+        )
+
         let items = try context.fetch(FetchDescriptor<ReminderItem>())
         let itemsByID = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         let mappings = try context.fetch(FetchDescriptor<SyncMapping>(
@@ -82,14 +87,21 @@ public enum ReminderSyncService {
         ))
         let mappingsByLocalID = Dictionary(mappings.map { ($0.localID, $0) }, uniquingKeysWith: { a, _ in a })
 
+        // Migrate existing items before the next suspension point. Preserve
+        // each mapping's identity even if a later upsert coalesces that row.
+        for item in items {
+            let owned = mappings.filter { $0.localID == item.id }
+            if item.eventKitExternalID == nil,
+               Set(owned.map(\.externalID)).count == 1, let mapping = owned.first {
+                item.eventKitExternalID = mapping.externalID
+                item.eventKitBaseSnapshot = mapping.baseSnapshot
+            }
+        }
+        try context.save()
+
         // 4. Plan.
         let locals = items.map { item in
-            ReminderPushPlanner.ItemState(
-                localID: item.id,
-                isTombstoned: item.isTombstoned,
-                modifiedAt: item.modifiedAt,
-                payload: item.writePayload(listExternalIDs: listExternalIDs, fallback: defaultListExternalID)
-            )
+            item.syncState(listExternalIDs: listExternalIDs, fallback: defaultListExternalID)
         }
         let remotes = snapshots.map { snapshot in
             ReminderSyncPlanner.RemoteState(
@@ -124,6 +136,8 @@ public enum ReminderSyncService {
             mapping.remoteModifiedAt = adoption.remote.lastModified
             mapping.lastSyncedAt = now
             mapping.baseSnapshot = try? JSONEncoder().encode(adoption.remote.payload)
+            mapping.localModifiedAt = itemsByID[adoption.localID]?.modifiedAt
+            itemsByID[adoption.localID]?.rememberIdentity(mapping)
         }
         if !plan.adoptions.isEmpty { try context.save() }
 
@@ -145,6 +159,7 @@ public enum ReminderSyncService {
                     mapping.localModifiedAt = change.localModifiedAt
                     mapping.lastSyncedAt = now
                     mapping.baseSnapshot = change.payload.flatMap { try? JSONEncoder().encode($0) }
+                    itemsByID[result.localID]?.rememberIdentity(mapping)
                     // If the pushed payload was a merge, land it locally too;
                     // the localWrites below handle that case.
 
@@ -186,21 +201,27 @@ public enum ReminderSyncService {
                 mapping.remoteModifiedAt = remote.lastModified
                 mapping.lastSyncedAt = now
                 mapping.baseSnapshot = try? JSONEncoder().encode(remote.payload)
+                item.rememberIdentity(mapping)
 
             case .apply(let localID, let payload, let remote):
                 guard let item = itemsByID[localID] else { continue }
                 apply(payload, to: item, listsByExternalID: listsByExternalID)
                 item.modifiedAt = now
-                if let mapping = mappingsByLocalID[localID] {
+                if let mapping = try? context.upsertMapping(
+                    localID: localID, bridgeID: .eventkit, externalID: remote.externalID
+                ) {
                     mapping.localModifiedAt = item.modifiedAt
                     mapping.remoteModifiedAt = remote.lastModified
                     mapping.lastSyncedAt = now
                     mapping.baseSnapshot = try? JSONEncoder().encode(payload)
+                    item.rememberIdentity(mapping)
                 }
 
             case .tombstone(let localID):
                 guard let item = itemsByID[localID] else { continue }
-                context.tombstone(item, at: now)
+                // This is a remote deletion, not a new outbound request.
+                item.tombstonedAt = now
+                item.modifiedAt = now
                 if let mapping = mappingsByLocalID[localID] {
                     context.delete(mapping)
                 }
@@ -209,12 +230,15 @@ public enum ReminderSyncService {
 
         // 7. Bookkeeping for clean pairs and orphans.
         for refresh in plan.refreshes {
-            guard let mapping = mappingsByLocalID[refresh.localID] else { continue }
+            let mapping = try context.upsertMapping(
+                localID: refresh.localID, bridgeID: .eventkit, externalID: refresh.remote.externalID
+            )
             mapping.remoteModifiedAt = refresh.remote.lastModified
             mapping.lastSyncedAt = now
             if mapping.baseSnapshot == nil {
                 mapping.baseSnapshot = try? JSONEncoder().encode(refresh.remote.payload)
             }
+            itemsByID[refresh.localID]?.rememberIdentity(mapping)
         }
         for orphanID in plan.orphanedMappingIDs {
             if let mapping = mappingsByLocalID[orphanID] {
@@ -303,7 +327,7 @@ public enum ReminderSyncService {
 
     // MARK: - Field application
 
-    private static func apply(
+    static func apply(
         _ payload: ReminderWritePayload,
         to item: ReminderItem,
         listsByExternalID: [String: ReminderList]
@@ -328,6 +352,22 @@ public enum ReminderSyncService {
 // MARK: - Payload builders
 
 extension ReminderItem {
+    func rememberIdentity(_ mapping: SyncMapping) {
+        eventKitExternalID = mapping.externalID
+        eventKitBaseSnapshot = mapping.baseSnapshot
+    }
+
+    func syncState(listExternalIDs: [UUID: String], fallback: String?) -> ReminderPushPlanner.ItemState {
+        ReminderPushPlanner.ItemState(
+            localID: id, isTombstoned: isTombstoned, modifiedAt: modifiedAt,
+            payload: writePayload(listExternalIDs: listExternalIDs, fallback: fallback),
+            externalID: eventKitExternalID,
+            syncBase: eventKitBaseSnapshot.flatMap { try? JSONDecoder().decode(ReminderWritePayload.self, from: $0) },
+            allowsRemoteCreation: origin != .eventkit && origin != .siriSuspected,
+            hasDeletionIntent: eventKitDeletionRequestedAt != nil
+        )
+    }
+
     /// The item's syncable fields as a write payload.
     public func writePayload(
         listExternalIDs: [UUID: String], fallback: String?

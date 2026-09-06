@@ -11,32 +11,46 @@ struct MacSettingsView: View {
     @State private var screens: [(id: Int, name: String)] = []
 
     var body: some View {
-        Form {
-            Section("Notch display") {
-                Picker("Show the panel on", selection: $notchDisplayID) {
-                    Text("Automatic (built-in first)").tag(0)
-                    ForEach(screens, id: \.id) { screen in
-                        Text(screen.name).tag(screen.id)
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: Tokens.Spacing.xs) {
+                Text("Settings")
+                    .font(.title2.bold())
+                    .foregroundStyle(Tokens.Colors.ink)
+                Text("Display and notifications")
+                    .font(Tokens.Typo.label)
+                    .foregroundStyle(Tokens.Colors.quiet)
+            }
+            .padding(Tokens.Spacing.xl)
+            Form {
+                Section("Notch display") {
+                    Picker("Show the panel on", selection: $notchDisplayID) {
+                        Text("Automatic (built-in first)").tag(0)
+                        ForEach(screens, id: \.id) { screen in
+                            Text(screen.name).tag(screen.id)
+                        }
+                    }
+                    .onChange(of: notchDisplayID) {
+                        NotchPanel.shared?.rebuildPanel()
+                        NotchPanel.shared?.refresh()
                     }
                 }
-                .onChange(of: notchDisplayID) {
-                    NotchPanel.shared?.rebuildPanel()
-                    NotchPanel.shared?.refresh()
+
+                Section {
+                    Toggle("Show peeks while presenting or sharing the screen", isOn: $showWhilePresenting)
+                    Toggle("Show peeks during Focus", isOn: $showDuringFocus)
+                } header: {
+                    Text("Quiet times")
+                } footer: {
+                    Text("Off means Dundu stays hidden in those moments. Hovering the notch always works.")
+                        .foregroundStyle(.secondary)
                 }
             }
-
-            Section {
-                Toggle("Show peeks while presenting or sharing the screen", isOn: $showWhilePresenting)
-                Toggle("Show peeks during Focus", isOn: $showDuringFocus)
-            } header: {
-                Text("Quiet times")
-            } footer: {
-                Text("Off means Dundu stays hidden in those moments. Hovering the notch always works.")
-                    .foregroundStyle(.secondary)
-            }
+            .formStyle(.grouped)
+            .scrollContentBackground(.hidden)
         }
-        .formStyle(.grouped)
-        .frame(width: 420)
+        .tint(Tokens.Colors.accent)
+        .background(Tokens.Colors.ground)
+        .frame(width: 480)
         .fixedSize()
         .onAppear(perform: reloadScreens)
     }

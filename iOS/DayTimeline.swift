@@ -75,8 +75,7 @@ struct DayTimeline: View {
                         if isToday {
                             nowRule(width: geo.size.width)
                         }
-                        // Scroll target: parks the current moment near the
-                        // bottom of the viewport, the way the reference reads.
+                        // Keep the current moment near the top, with the upcoming day below.
                         Color.clear
                             .frame(height: 1)
                             .offset(y: y(for: now))
@@ -87,7 +86,7 @@ struct DayTimeline: View {
                 .frame(height: contentHeight)
             }
             .onAppear {
-                proxy.scrollTo(Self.nowAnchor, anchor: UnitPoint(x: 0.5, y: 0.82))
+                proxy.scrollTo(Self.nowAnchor, anchor: UnitPoint(x: 0.5, y: 0.18))
             }
         }
     }
@@ -197,8 +196,7 @@ struct DayTimeline: View {
     }
 }
 
-/// A single soft tinted block: glyph and label at the top-left, and — for
-/// reminders — a check riding the right edge, exactly like the reference.
+/// A tinted schedule block, with a separate completion target for reminders.
 struct TimelineBlock: View {
     let entry: TimelineEntry
     let onTap: () -> Void
@@ -206,58 +204,56 @@ struct TimelineBlock: View {
     var onEdit: () -> Void = {}
 
     var body: some View {
-        Button(action: onTap) {
-            VStack(alignment: .leading, spacing: 2) {
-                Image(systemName: entry.glyph)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(entry.tint)
-                Text(entry.title)
-                    .font(Tokens.Typo.blockTitle)
-                    .foregroundStyle(Tokens.Colors.ink)
-                    .strikethrough(entry.isCompleted, color: Tokens.Colors.quiet)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                if let subtitle = entry.subtitle {
-                    Text(subtitle)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(Tokens.Colors.quiet)
-                        .lineLimit(1)
+        GeometryReader { geometry in
+            Button(action: onTap) {
+                VStack(alignment: .leading, spacing: Tokens.Spacing.xs) {
+                    HStack(alignment: .firstTextBaseline, spacing: Tokens.Spacing.xs) {
+                        if entry.kind == .event {
+                            Image(systemName: entry.glyph)
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(entry.tint)
+                        }
+                        Text(entry.title)
+                            .font(.system(.footnote).weight(.semibold))
+                            .foregroundStyle(Tokens.Colors.ink)
+                            .strikethrough(entry.isCompleted, color: Tokens.Colors.quiet)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                    }
+                    if geometry.size.height > 65, let subtitle = entry.subtitle {
+                        Text(subtitle)
+                            .font(Tokens.Typo.caption)
+                            .foregroundStyle(Tokens.Colors.quiet)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
+                .padding(.leading, Tokens.Spacing.md)
+                .padding(.trailing, entry.kind == .reminder ? Tokens.Layout.control : Tokens.Spacing.md)
+                .padding(.vertical, Tokens.Spacing.xs + 2)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .cardSurface(Tokens.Colors.blockFill(entry.tint), radius: Tokens.Radius.block)
+                .opacity(entry.isCompleted ? 0.55 : 1)
             }
-            .padding(.horizontal, Tokens.Spacing.md)
-            .padding(.vertical, Tokens.Spacing.sm + 2)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            // No outline: the fill alone separates a block from the grid,
-            // which is what keeps a busy day from turning into a mesh.
-            .cardSurface(Tokens.Colors.blockFill(entry.tint), radius: Tokens.Radius.block)
-            .opacity(entry.isCompleted ? 0.55 : 1)
-        }
-        .buttonStyle(PressableStyle())
-        .contextMenu {
-            Button("Edit", systemImage: "pencil", action: onEdit)
-        }
-        .overlay(alignment: .topTrailing) {
-            if entry.kind == .reminder {
-                Button(action: onToggle) {
-                    Image(systemName: entry.isCompleted ? "checkmark.circle.fill" : "circle.fill")
-                        .font(.system(size: 22))
-                        .symbolRenderingMode(.palette)
-                        .foregroundStyle(
-                            entry.isCompleted ? .white : Tokens.Colors.card,
-                            entry.isCompleted ? Tokens.Colors.hueDone : entry.tint.opacity(0.4)
-                        )
+            .buttonStyle(PressableStyle())
+            .accessibilityLabel(entry.title)
+            .accessibilityValue(entry.start.formatted(date: .omitted, time: .shortened))
+            .accessibilityHint(entry.joinURL == nil ? "Opens details" : "Joins meeting. Long press to edit.")
+            .contextMenu {
+                Button("Edit", systemImage: "pencil", action: onEdit)
+            }
+            .overlay(alignment: .topTrailing) {
+                if entry.kind == .reminder {
+                    Button(action: onToggle) {
+                        Image(systemName: entry.isCompleted ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 22, weight: .light))
+                            .foregroundStyle(entry.tint)
+                            .frame(width: Tokens.Layout.control, height: Tokens.Layout.control)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(entry.isCompleted ? "Reopen reminder" : "Complete reminder")
                 }
-                .buttonStyle(.plain)
-                // Rides the edge rather than sitting inside it.
-                .offset(x: 10, y: 10)
-            } else if entry.joinURL != nil {
-                Image(systemName: "video.fill")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.white)
-                    .padding(5)
-                    .background(Circle().fill(entry.tint))
-                    .offset(x: 8, y: 8)
             }
         }
     }

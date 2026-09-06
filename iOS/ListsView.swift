@@ -2,20 +2,8 @@ import SwiftUI
 import SwiftData
 import DunduKit
 
-/// Every open reminder, on one screen, grouped by the list it belongs to.
-///
-/// Lists used to be the screen and reminders lived a tap inside them. That is
-/// backwards: the reminders are the content, the lists are just how they're
-/// filed. The filter row narrows to one list without hiding anything, and no
-/// row is tinted — the only colour on the screen is the selected filter chip
-/// and red text for something that is late.
+/// Reminders grouped by list, with filters, visible completion, and native swipe actions.
 struct ListsView: View {
-    /// Collapses the bar while the user is reading.
-    var barChrome: BarChrome?
-    /// Settings is a sheet, opened from this screen's header — it isn't a
-    /// destination worth a quarter of the tab bar.
-    var onOpenSettings: () -> Void = {}
-
     @Environment(\.modelContext) private var context
 
     @Query(
@@ -28,8 +16,6 @@ struct ListsView: View {
     ) private var reminders: [ReminderItem]
 
     @State private var searchText = ""
-    @State private var searching = false
-    @FocusState private var searchFocused: Bool
     @State private var selectedListID: UUID?
     @State private var editingReminder: ReminderItem?
     @State private var showingNew = false
@@ -38,126 +24,80 @@ struct ListsView: View {
     @State private var dropTargetID: UUID?
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                // Search and settings: the two things you reach for from the
-                // top of a screen. Adding and recording live in the corner
-                // stack on the tab bar instead.
-                ScreenHeader(title: Greeting.now(), subtitle: countLabel) {
-                    HStack(spacing: Tokens.Spacing.sm) {
-                        CircleButton(glyph: searching ? "xmark" : "magnifyingglass") {
-                            withAnimation(Tokens.Anim.content) {
-                                searching.toggle()
-                                if !searching { searchText = "" }
+        VStack(spacing: 0) {
+            if lists.count > 1 {
+                filterRow
+            }
+
+            // A real List, not a LazyVStack: `.swipeActions` is inert
+            // outside one, and a hand-rolled drag gesture would forfeit
+            // full-swipe, haptics and the system's own spring.
+            List {
+                if visibleReminders.isEmpty {
+                    QuietEmptyState(
+                        glyph: searchText.isEmpty ? "checkmark.circle" : "magnifyingglass",
+                        title: searchText.isEmpty ? "All clear" : "Nothing matches",
+                        message: searchText.isEmpty && reminders.isEmpty
+                            ? "Add your first reminder with +, speak it aloud, or connect Apple Reminders in Settings."
+                            : nil
+                    )
+                    .padding(.top, Tokens.Spacing.xl)
+                    .plainRow()
+                }
+
+                ForEach(groups, id: \.list?.id) { group in
+                    Section {
+                        ForEach(group.items) { reminder in
+                            ReminderRow(
+                                reminder: reminder,
+                                lists: lists,
+                                onTap: { editingReminder = reminder },
+                                onMove: { move(reminder, to: $0) },
+                                onDelete: { delete(reminder) }
+                            )
+                            .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                            .listRowBackground(Tokens.Colors.card)
+                            .draggable(reminder.id.uuidString) {
+                                Text(reminder.title)
+                                    .font(Tokens.Typo.blockTitle)
+                                    .padding(Tokens.Spacing.sm)
                             }
                         }
-                        CircleButton(glyph: "gearshape", action: onOpenSettings)
-                    }
-                }
+                    } header: {
+                        if selectedListID == nil, let list = group.list {
+                            groupHeader(list, count: group.items.count)
 
-                if searching {
-                    searchField
-                }
-
-                if lists.count > 1 {
-                    filterRow
-                }
-
-                // A real List, not a LazyVStack: `.swipeActions` is inert
-                // outside one, and a hand-rolled drag gesture would forfeit
-                // full-swipe, haptics and the system's own spring.
-                List {
-                    ScrollProbe().plainRow()
-                    if visibleReminders.isEmpty {
-                        QuietEmptyState(
-                            glyph: searchText.isEmpty ? "checkmark.circle" : "magnifyingglass",
-                            title: searchText.isEmpty ? "All clear" : "Nothing matches",
-                            message: searchText.isEmpty && reminders.isEmpty
-                                ? "Reminders appear after the first sync with Apple Reminders."
-                                : nil
-                        )
-                        .padding(.top, Tokens.Spacing.xl)
-                        .plainRow()
-                    }
-
-                    ForEach(groups, id: \.list?.id) { group in
-                        Section {
-                            ForEach(group.items) { reminder in
-                                ReminderRow(
-                                    reminder: reminder,
-                                    lists: lists,
-                                    onTap: { editingReminder = reminder },
-                                    onMove: { move(reminder, to: $0) },
-                                    onDelete: { delete(reminder) }
-                                )
-                                .plainRow()
-                                .draggable(reminder.id.uuidString) {
-                                    Text(reminder.title)
-                                        .font(Tokens.Typo.blockTitle)
-                                        .padding(Tokens.Spacing.sm)
-                                                            }
-                            }
-                        } header: {
-                            if selectedListID == nil, let list = group.list {
-                                groupHeader(list, count: group.items.count)
-                                    .plainRow(inset: false)
-                            }
                         }
                     }
-
-                    if !completed.isEmpty {
-                        completedSection
-                    }
                 }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
-                .environment(\.defaultMinListRowHeight, 1)
-                .clearsFloatingBar()
-                .tracksScroll(barChrome)
-            }
-            .background(Tokens.Colors.ground)
-            .toolbar(.hidden, for: .navigationBar)
-            .sheet(item: $editingReminder) { ReminderEditView(existing: $0) }
-            .sheet(isPresented: $showingNew) {
-                ReminderEditView(existing: nil, preferredListID: selectedListID)
-            }
-        }
-    }
 
-    /// The system's search field, in the app's own materials: a soft filled
-    /// capsule rather than an outline.
-    private var searchField: some View {
-        HStack(spacing: Tokens.Spacing.sm) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Tokens.Colors.quiet)
-            TextField("Search titles and notes", text: $searchText)
-                .font(Tokens.Typo.body)
-                .focused($searchFocused)
-                .submitLabel(.search)
+                if !completed.isEmpty {
+                    completedSection
+                }
+            }
+            .listStyle(.insetGrouped)
+            .scrollContentBackground(.hidden)
+            .environment(\.defaultMinListRowHeight, 1)
+            .dunduScrollMargins()
         }
-        .padding(.horizontal, Tokens.Spacing.md)
-        .padding(.vertical, Tokens.Spacing.md)
-        .background { Capsule().fill(Tokens.Colors.fill) }
-        .padding(.horizontal, Tokens.Layout.gutter)
-        .padding(.bottom, Tokens.Spacing.md)
-        .onAppear { searchFocused = true }
+        .background(Tokens.Colors.ground)
+        .navigationTitle("Reminders")
+        .searchable(text: $searchText, prompt: "Search titles and notes")
+        .sheet(item: $editingReminder) { ReminderEditView(existing: $0) }
+        .sheet(isPresented: $showingNew) {
+            ReminderEditView(existing: nil, preferredListID: selectedListID)
+        }
     }
 
     // MARK: - Filter
 
-    /// A segmented row of soft capsules. The list's colour used to ride in
-    /// front of the name as a dot, which read as debris at this size — the
-    /// selected capsule now carries the colour itself, and the unselected
-    /// ones carry none at all.
     private var filterRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: Tokens.Spacing.sm) {
-                filterChip(title: "All", tint: nil, id: nil)
+                filterChip(title: "All", id: nil)
                 ForEach(lists) { list in
                     filterChip(
                         title: list.title,
-                        tint: Color(hex: list.colorHex),
                         id: list.id
                     )
                 }
@@ -167,9 +107,9 @@ struct ListsView: View {
         }
     }
 
-    private func filterChip(title: String, tint: Color?, id: UUID?) -> some View {
+    private func filterChip(title: String, id: UUID?) -> some View {
         let isOn = selectedListID == id
-        let colour = tint ?? Tokens.Colors.ink
+        let colour = Tokens.Colors.accent
         return Button {
             withAnimation(Tokens.Anim.content) {
                 selectedListID = isOn ? nil : id
@@ -177,16 +117,17 @@ struct ListsView: View {
         } label: {
             Text(title)
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(isOn ? colour : Tokens.Colors.quiet)
+                .foregroundStyle(isOn ? Tokens.Colors.accent : Tokens.Colors.quiet)
                 .padding(.horizontal, Tokens.Spacing.md + 2)
-                .padding(.vertical, 8)
+                .frame(minHeight: Tokens.Layout.control)
                 .background {
                     Capsule().fill(
-                        isOn ? Tokens.Colors.blockFill(colour) : Tokens.Colors.fill
+                        isOn ? Tokens.Colors.blockFill(colour) : .clear
                     )
                 }
         }
         .buttonStyle(PressableStyle())
+        .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 
     // MARK: - Grouping
@@ -231,12 +172,6 @@ struct ListsView: View {
         return result
     }
 
-    private var countLabel: String? {
-        let count = open.count
-        guard count > 0 else { return nil }
-        return count == 1 ? "1 open" : "\(count) open"
-    }
-
     private func groupHeader(_ list: ReminderList, count: Int) -> some View {
         header(list, count: count)
             .background {
@@ -271,9 +206,7 @@ struct ListsView: View {
                 .monospacedDigit()
                 .foregroundStyle(Tokens.Colors.quiet)
         }
-        .padding(.horizontal, Tokens.Layout.gutter)
-        .padding(.top, Tokens.Spacing.lg)
-        .padding(.bottom, Tokens.Spacing.sm)
+
     }
 
     // MARK: - Completed
@@ -287,7 +220,8 @@ struct ListsView: View {
                                 onTap: { editingReminder = reminder },
                                 onMove: { move(reminder, to: $0) },
                                 onDelete: { delete(reminder) })
-                        .plainRow()
+                        .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                        .listRowBackground(Tokens.Colors.card)
                 }
             }
         } header: {
@@ -307,13 +241,11 @@ struct ListsView: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(Tokens.Colors.faint)
                 }
-                .padding(.horizontal, Tokens.Layout.gutter)
-                .padding(.top, Tokens.Spacing.lg)
-                .padding(.bottom, Tokens.Spacing.sm)
+
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .plainRow(inset: false)
+
         }
     }
 
@@ -336,14 +268,7 @@ struct ListsView: View {
     }
 }
 
-/// A reminder as its own card: a check, the title, and — only when there is
-/// one — a due date. Separators are gone; each item is a white block on the
-/// grey ground, which is what the current system apps do and what makes a
-/// half-swiped row read as a card being pulled aside.
-///
-/// Tall enough to be a comfortable target, which matters more here than
-/// elsewhere: both swipe directions are live, so a short row makes it easy to
-/// start a swipe when you meant to tap.
+/// Separate completion and edit targets, retaining the native swipe and context menus.
 struct ReminderRow: View {
     @Environment(\.modelContext) private var context
     let reminder: ReminderItem
@@ -368,49 +293,61 @@ struct ReminderRow: View {
     }
 
     var body: some View {
-        Button(action: onTap) {
-            HStack(alignment: .top, spacing: Tokens.Spacing.md) {
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: Tokens.Spacing.xs) {
-                        if reminder.priority == .high && !reminder.isCompleted {
-                            Text("!!")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundStyle(Tokens.Colors.overdue)
-                        }
-                        Text(reminder.title)
-                            .font(Tokens.Typo.body)
-                            .foregroundStyle(
-                                reminder.isCompleted ? Tokens.Colors.quiet : Tokens.Colors.ink
-                            )
-                            .strikethrough(reminder.isCompleted, color: Tokens.Colors.quiet)
-                            .multilineTextAlignment(.leading)
-                    }
-                    if let notes = reminder.notes, !notes.isEmpty {
-                        Text(notes)
-                            .font(.system(size: 13, weight: .regular))
-                            .foregroundStyle(Tokens.Colors.quiet)
-                            .lineLimit(1)
-                    }
-                    if let detail {
-                        HStack(spacing: Tokens.Spacing.xs) {
-                            Text(detail)
-                            if reminder.locationAlarm != nil {
-                                Image(systemName: "mappin")
-                            }
-                        }
-                        .font(Tokens.Typo.caption)
-                        .foregroundStyle(isLate ? Tokens.Colors.overdue : Tokens.Colors.quiet)
-                    }
-                }
-
-                Spacer(minLength: Tokens.Spacing.sm)
+        HStack(alignment: .top, spacing: Tokens.Spacing.xs) {
+            Button(action: toggle) {
+                Image(systemName: reminder.isCompleted ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 23, weight: .light))
+                    .foregroundStyle(reminder.isCompleted ? Tokens.Colors.accent : Tokens.Colors.faint)
+                    .frame(width: Tokens.Layout.control, height: Tokens.Layout.control)
+                    .contentShape(Rectangle())
             }
-            .padding(.horizontal, Tokens.Layout.gutter)
-            .padding(.vertical, Tokens.Spacing.md + 2)
-            .frame(minHeight: 62)
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+            .accessibilityLabel(reminder.isCompleted ? "Reopen reminder" : "Complete reminder")
+            Button(action: onTap) {
+                HStack(alignment: .top, spacing: Tokens.Spacing.md) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: Tokens.Spacing.xs) {
+                            if reminder.priority == .high && !reminder.isCompleted {
+                                Text("!!")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(Tokens.Colors.overdue)
+                            }
+                            Text(reminder.title)
+                                .font(Tokens.Typo.body)
+                                .foregroundStyle(
+                                    reminder.isCompleted ? Tokens.Colors.quiet : Tokens.Colors.ink
+                                )
+                                .strikethrough(reminder.isCompleted, color: Tokens.Colors.quiet)
+                                .multilineTextAlignment(.leading)
+                        }
+                        if let notes = reminder.notes, !notes.isEmpty {
+                            Text(notes)
+                                .font(.system(size: 13, weight: .regular))
+                                .foregroundStyle(Tokens.Colors.quiet)
+                                .lineLimit(1)
+                        }
+                        if let detail {
+                            HStack(spacing: Tokens.Spacing.xs) {
+                                Text(detail)
+                                if reminder.locationAlarm != nil {
+                                    Image(systemName: "mappin")
+                                }
+                            }
+                            .font(Tokens.Typo.caption)
+                            .foregroundStyle(isLate ? Tokens.Colors.overdue : Tokens.Colors.quiet)
+                        }
+                    }
+
+                    Spacer(minLength: Tokens.Spacing.sm)
+                }
+                .padding(.vertical, Tokens.Spacing.sm)
+                .frame(minHeight: Tokens.Layout.control, alignment: .center)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
+        .padding(Tokens.Spacing.sm)
+        .padding(.trailing, Tokens.Spacing.sm)
         // Right: the one action worth a thoughtless flick.
         .swipeActions(edge: .leading, allowsFullSwipe: true) {
             Button(action: toggle) {

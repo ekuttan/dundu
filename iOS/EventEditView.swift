@@ -38,8 +38,9 @@ struct EventEditView: View {
                     }
                 }
 
-                Section {
+                Section("Event details") {
                     TextField("Title", text: $title)
+                        .font(Tokens.Typo.cardTitle)
                     TextField("Location", text: $location)
                     TextField("Notes", text: $notes, axis: .vertical)
                         .lineLimit(3...6)
@@ -53,6 +54,8 @@ struct EventEditView: View {
                         DatePicker("Starts", selection: $startAt)
                         DatePicker("Ends", selection: $endAt)
                     }
+                } header: {
+                    Text("Schedule")
                 } footer: {
                     if event.recurringEventID != nil {
                         Text("This is one occurrence of a repeating event. Only this occurrence changes; edit the series in Google Calendar.")

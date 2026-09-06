@@ -121,25 +121,46 @@ public enum ReminderSyncPlanner {
         var mappedLocalIDs = Set<UUID>()
         var mappedExternalIDs = Set<String>()
 
-        for mapping in mappings {
+        // Reconstitute bookkeeping from the identity carried by the item.
+        // CloudKit does not deliver different model records atomically.
+        var effectiveMappings = mappings
+        for local in locals where !mappings.contains(where: { $0.localID == local.localID }) {
+            guard let externalID = local.externalID else { continue }
+            effectiveMappings.append(MappingView(
+                localID: local.localID, externalID: externalID, base: local.syncBase
+            ))
+        }
+        // A collision is not permission to delete or overwrite either item.
+        // Hold conflicting identities until they can be reconciled, including
+        // a late mapping pointing to a local record we have not received yet.
+        let localOwners = Dictionary(grouping: effectiveMappings, by: \.externalID)
+        let remoteOwners = Dictionary(grouping: effectiveMappings, by: \.localID)
+        var seenPairs = Set<MappingPair>()
+        for mapping in effectiveMappings {
             mappedLocalIDs.insert(mapping.localID)
             mappedExternalIDs.insert(mapping.externalID)
+            guard Set(localOwners[mapping.externalID, default: []].map(\.localID)).count == 1,
+                  Set(remoteOwners[mapping.localID, default: []].map(\.externalID)).count == 1,
+                  seenPairs.insert(MappingPair(localID: mapping.localID, externalID: mapping.externalID)).inserted
+            else { continue }
 
             let local = localsByID[mapping.localID]
             let remote = remotesByExternalID[mapping.externalID]
+            if !mappings.contains(where: { $0.localID == mapping.localID }) {
+                // A remembered identity can precede EventKit's own iCloud
+                // delivery too. Absence on this first encounter is not a deletion.
+                guard let remote else { continue }
+                plan.adoptions.append((mapping.localID, remote))
+            }
 
             switch (local, remote) {
             case (nil, nil):
                 plan.orphanedMappingIDs.append(mapping.localID)
 
             case (nil, .some):
-                // Local item purged entirely; finish the deletion remotely.
-                plan.remoteChanges.append(PlannedReminderChange(
-                    localID: mapping.localID,
-                    action: .delete(externalID: mapping.externalID),
-                    payload: nil,
-                    localModifiedAt: now
-                ))
+                // Missing is not deleted: the item may still be in transit
+                // through CloudKit. Only an explicit tombstone can delete.
+                continue
 
             case (let local?, nil):
                 if local.isTombstoned {
@@ -152,6 +173,7 @@ public enum ReminderSyncPlanner {
 
             case (let local?, let remote?):
                 if local.isTombstoned {
+                    guard local.hasDeletionIntent else { continue }
                     plan.remoteChanges.append(PlannedReminderChange(
                         localID: local.localID,
                         action: .delete(externalID: mapping.externalID),
@@ -244,7 +266,7 @@ public enum ReminderSyncPlanner {
         unmappedRemotes.removeAll { adoptedExternalIDs.contains($0.externalID) }
 
         // Local only, genuinely absent remotely: create in EventKit.
-        for local in unmappedLocals {
+        for local in unmappedLocals where local.allowsRemoteCreation && local.externalID == nil {
             plan.remoteChanges.append(PlannedReminderChange(
                 localID: local.localID,
                 action: .create,
@@ -259,6 +281,11 @@ public enum ReminderSyncPlanner {
         }
 
         return plan
+    }
+
+    private struct MappingPair: Hashable {
+        var localID: UUID
+        var externalID: String
     }
 
     // MARK: - Three-way merge

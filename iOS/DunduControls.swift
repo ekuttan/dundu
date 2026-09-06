@@ -1,26 +1,24 @@
 import SwiftUI
 
-/// The small vocabulary every screen is built from. Nothing here knows about
-/// reminders or events — it is purely the look: a soft grey ground, flat white
-/// cards, one big title per screen, and chrome that floats over the content.
 
 // MARK: - Screen chrome
 
-/// Header for a full screen: one large title, an optional line under it, and
-/// round actions on the right. This *is* the navigation bar — there is no
-/// other one, so the title carries the weight the system bar used to.
 struct ScreenHeader<Trailing: View>: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let title: String
     var subtitle: String?
     @ViewBuilder var trailing: Trailing
 
     var body: some View {
-        HStack(alignment: .center, spacing: Tokens.Spacing.md) {
-            VStack(alignment: .leading, spacing: 2) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Tokens.Spacing.md))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: Tokens.Spacing.md))
+        layout {
+            VStack(alignment: .leading, spacing: Tokens.Spacing.xs) {
                 Text(title)
                     .font(Tokens.Typo.largeTitle)
                     .foregroundStyle(Tokens.Colors.ink)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                     .minimumScaleFactor(0.8)
                 if let subtitle {
                     Text(subtitle)
@@ -28,12 +26,13 @@ struct ScreenHeader<Trailing: View>: View {
                         .foregroundStyle(Tokens.Colors.quiet)
                 }
             }
-            Spacer(minLength: Tokens.Spacing.sm)
+            if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: Tokens.Spacing.sm) }
             trailing
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, Tokens.Layout.gutter)
-        .padding(.top, Tokens.Spacing.md)
-        .padding(.bottom, Tokens.Spacing.lg)
+        .padding(.top, Tokens.Spacing.lg)
+        .padding(.bottom, Tokens.Spacing.xl)
     }
 }
 
@@ -43,12 +42,10 @@ extension ScreenHeader where Trailing == EmptyView {
     }
 }
 
-/// The round button the system apps put beside a large title: a glyph in a
-/// soft circle. `.accent` is the one coral control a screen is allowed.
 struct CircleButton: View {
     enum Style {
         case soft      // grey circle, ink glyph — the default
-        case accent    // the icon's coral, white glyph
+        case accent    // filled accent action
         case onCard    // sits on a card rather than the ground
     }
 
@@ -90,15 +87,12 @@ struct CircleButton: View {
     }
 
     private var foreground: Color {
-        style == .accent ? .white : Tokens.Colors.ink
+        style == .accent ? Tokens.Colors.onAccent : Tokens.Colors.ink
     }
 }
 
 // MARK: - Surfaces
 
-/// A card: the one raised surface in the app. Flat white on the grey ground,
-/// no border, generous corners. `tint` swaps the fill for a soft wash of a
-/// hue, for the places where colour is the information.
 struct SoftCard<Content: View>: View {
     var tint: Color?
     var padding: CGFloat = Tokens.Spacing.lg
@@ -112,15 +106,11 @@ struct SoftCard<Content: View>: View {
     }
 }
 
-/// The heading line of a card, straight out of the system apps: a tinted
-/// glyph, a tinted title, and quiet trailing detail.
 struct CardHeader: View {
     let glyph: String
     let title: String
     var tint: Color = Tokens.Colors.accent
     var detail: String?
-    /// Separate from `tint`: the heading can stay quiet while the detail
-    /// carries the one piece of urgency worth colouring.
     var detailTint: Color = Tokens.Colors.quiet
     var showsChevron = false
 
@@ -130,7 +120,7 @@ struct CardHeader: View {
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(tint)
             Text(title)
-                .font(Tokens.Typo.cardTitle)
+                .font(Tokens.Typo.label)
                 .foregroundStyle(tint)
             Spacer(minLength: Tokens.Spacing.sm)
             if let detail {
@@ -147,8 +137,6 @@ struct CardHeader: View {
     }
 }
 
-/// A compact card — the tray's unit. Tinted only by its glyph and its detail
-/// line; the surface itself stays white so a row of them reads as one family.
 struct TrayChip: View {
     let title: String
     var detail: String?
@@ -159,35 +147,50 @@ struct TrayChip: View {
     let onTap: () -> Void
 
     var body: some View {
-        Button(action: onTap) {
-            // No checkbox here either: completing is a swipe on the list, and
-            // two ways to do one thing is one too many.
-            HStack(spacing: Tokens.Spacing.sm) {
-                VStack(alignment: .leading, spacing: 1) {
+        HStack(spacing: Tokens.Spacing.xs) {
+            if let onToggle {
+                Button(action: onToggle) {
+                    Image(systemName: isCompleted ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 20, weight: .light))
+                        .foregroundStyle(tint)
+                        .frame(width: Tokens.Layout.control, height: Tokens.Layout.control)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isCompleted ? "Reopen reminder" : "Complete reminder")
+            } else {
+                Image(systemName: glyph)
+                    .foregroundStyle(tint)
+                    .frame(width: Tokens.Layout.control)
+            }
+            Button(action: onTap) {
+                VStack(alignment: .leading, spacing: Tokens.Spacing.xs) {
                     Text(title)
                         .font(Tokens.Typo.blockTitle)
                         .foregroundStyle(Tokens.Colors.ink)
                         .strikethrough(isCompleted, color: Tokens.Colors.quiet)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                    Text(detail ?? "Anytime")
+                        .font(Tokens.Typo.caption)
+                        .foregroundStyle(tint)
                         .lineLimit(1)
-                    if let detail {
-                        Text(detail)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(tint)
-                            .lineLimit(1)
-                    }
                 }
+                .frame(minHeight: Tokens.Layout.control, alignment: .leading)
+                .contentShape(Rectangle())
             }
-            .padding(.horizontal, Tokens.Spacing.md)
-            .padding(.vertical, Tokens.Spacing.md)
-            .cardSurface(radius: Tokens.Radius.block)
+            .buttonStyle(.plain)
         }
-        .buttonStyle(PressableStyle())
+        .padding(Tokens.Spacing.sm)
+        .padding(.trailing, Tokens.Spacing.sm)
+        .frame(maxWidth: 300, alignment: .leading)
+        .cardSurface(radius: Tokens.Radius.block)
     }
+
 }
 
 // MARK: - Actions
 
-/// The one filled control per screen.
 struct PillButton: View {
     let title: String
     var glyph: String?
@@ -196,7 +199,7 @@ struct PillButton: View {
 
     enum Style {
         case primary   // ink
-        case accent    // the icon's coral
+        case accent    // filled accent action
         case quiet     // soft grey fill
 
         var background: AnyShapeStyle {
@@ -210,7 +213,7 @@ struct PillButton: View {
         var foreground: Color {
             switch self {
             case .primary: Tokens.Colors.card
-            case .accent: .white
+            case .accent: Tokens.Colors.onAccent
             case .quiet: Tokens.Colors.ink
             }
         }
@@ -235,189 +238,86 @@ struct PillButton: View {
     }
 }
 
-/// Everything tappable sinks very slightly.
 struct PressableStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.98 : 1)
             .opacity(configuration.isPressed ? 0.9 : 1)
-            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
+            .animation(.easeOut(duration: 0.14), value: configuration.isPressed)
     }
 }
 
 // MARK: - Screen treatment
 
 extension View {
-    /// Grey ground under a stock `Form` or `List`.
-    ///
-    /// The bespoke screens are hand-built, but the ones that are genuinely
-    /// forms — editing a reminder, picking an account — are better served by
-    /// the real control than by a reimplementation of it. The grouped style
-    /// already draws white cards on grey, which is exactly the language the
-    /// rest of the app speaks; this only replaces the backdrop with our own
-    /// ground so the greys match.
     func dunduFormBackground() -> some View {
         scrollContentBackground(.hidden)
             .background(Tokens.Colors.ground)
     }
 
-    /// Keeps a scroll view's last row clear of the floating tab bar.
-    func clearsFloatingBar() -> some View {
-        contentMargins(.bottom, Tokens.Layout.barInset, for: .scrollContent)
+    func dunduScrollMargins() -> some View {
+        contentMargins(.bottom, Tokens.Layout.scrollBottomPadding, for: .scrollContent)
     }
 }
 
 // MARK: - Navigation
 
-/// The floating bar: destinations in a glass pill on the left, and the two
-/// things you *do* — capture by voice, add by hand — stacked in their own
-/// glass column in the right corner, the way the system apps now separate
-/// "where you are" from "what you're doing".
-struct DunduTabBar<Tab: Hashable>: View {
-    struct Item: Identifiable {
-        let tab: Tab
-        let glyph: String
-        let title: String
-        var badge: Int = 0
-        var id: String { title }
-    }
-
-    /// A round action in the right-corner stack. Listed top to bottom.
-    struct Action: Identifiable {
-        let glyph: String
-        let title: String
-        var isPrimary = false
-        let perform: () -> Void
-        var id: String { title }
-    }
-
-    @Binding var selection: Tab
-    let items: [Item]
-    var actions: [Action] = []
-
-    /// Both capsules are `Tokens.Layout.barHeight` tall. Inside them the
-    /// round targets are that height less the capsule's own padding, so the
-    /// tab pill and the action capsule line up exactly.
-    private let capsulePadding: CGFloat = 5
-    private var actionSize: CGFloat { Tokens.Layout.barHeight - capsulePadding * 2 }
-
-    /// Collapsed, only the primary survives — see `BarChrome`.
-    var chrome: BarChrome?
-
-    private var isCollapsed: Bool { chrome?.isCollapsed ?? false }
-    private var secondary: [Action] { actions.filter { !$0.isPrimary } }
-    private var primary: Action? { actions.first { $0.isPrimary } }
+/// Native navigation adopts the current iOS appearance and keeps older OS support.
+struct DunduWorkspace: View {
+    @Binding var selection: AppTab
+    var inboxCount: Int
+    var onAdd: () -> Void
+    var onRecord: () -> Void
+    var onSettings: () -> Void
 
     var body: some View {
-        HStack(alignment: .center, spacing: Tokens.Spacing.md) {
-            if !isCollapsed {
-                tabPill
-                    .transition(.move(edge: .leading).combined(with: .opacity))
+        TabView(selection: $selection) {
+            NavigationStack {
+                ListsView()
+                    .modifier(CaptureToolbar(onAdd: onAdd, onRecord: onRecord, onSettings: onSettings))
             }
-            Spacer(minLength: 0)
-            actionRow
-        }
-        .padding(.horizontal, Tokens.Layout.gutter)
-        .padding(.bottom, Tokens.Spacing.sm)
-    }
+            .tabItem { Label("Reminders", systemImage: "checklist") }
+            .tag(AppTab.lists)
 
-    /// The mic and the add button on one line, in one capsule, so they read as
-    /// a pair rather than two loose circles. Collapsed, the capsule shrinks to
-    /// the add button alone and the rest slides out behind it.
-    private var actionRow: some View {
-        HStack(spacing: 4) {
-            if !isCollapsed {
-                ForEach(secondary) { action in
-                    Button(action: action.perform) {
-                        Image(systemName: action.glyph)
-                            .font(.system(size: 19, weight: .semibold))
-                            .foregroundStyle(Tokens.Colors.ink)
-                            .frame(width: actionSize, height: actionSize)
-                            .contentShape(Circle())
-                    }
-                    .buttonStyle(PressableStyle())
-                    .accessibilityLabel(action.title)
-                    .transition(.scale.combined(with: .opacity))
-                }
+            NavigationStack {
+                TodayView(inboxCount: inboxCount) { selection = .inbox }
+                    .modifier(CaptureToolbar(onAdd: onAdd, onRecord: onRecord, onSettings: onSettings))
             }
+            .tabItem { Label("Today", systemImage: "calendar") }
+            .tag(AppTab.today)
 
-            if let primary {
-                Button(action: primary.perform) {
-                    Image(systemName: primary.glyph)
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: actionSize, height: actionSize)
-                        .background(Circle().fill(Tokens.Colors.accent))
-                        .contentShape(Circle())
-                }
-                .buttonStyle(PressableStyle())
-                .accessibilityLabel(primary.title)
+            NavigationStack {
+                InboxView()
+                    .modifier(CaptureToolbar(onAdd: onAdd, onRecord: onRecord, onSettings: onSettings))
             }
+            .tabItem { Label("Inbox", systemImage: "tray") }
+            .badge(inboxCount)
+            .tag(AppTab.inbox)
         }
-        .padding(capsulePadding)
-        .frame(height: Tokens.Layout.barHeight)
-        .floatingSurface(Capsule())
-    }
-
-    private var tabPill: some View {
-        HStack(spacing: 2) {
-            ForEach(items) { tabButton($0) }
-        }
-        .padding(capsulePadding)
-        .frame(height: Tokens.Layout.barHeight)
-        .floatingSurface(Capsule())
-    }
-
-    /// Icons only. A label under every glyph is a second row of type
-    /// competing with the screen's own title, and the reference does without.
-    private func tabButton(_ item: Item) -> some View {
-        let isOn = selection == item.tab
-        return Button {
-            withAnimation(Tokens.Anim.chrome) { selection = item.tab }
-        } label: {
-            ZStack(alignment: .topTrailing) {
-                Image(systemName: item.glyph)
-                    .font(.system(size: 20, weight: isOn ? .semibold : .regular))
-                if item.badge > 0 {
-                    Circle()
-                        .fill(Tokens.Colors.accent)
-                        .frame(width: 7, height: 7)
-                        .offset(x: 7, y: -2)
-                }
-            }
-            // Ink when selected, not accent: the blue is spent on the add
-            // button, and spending it twice makes neither read.
-            .foregroundStyle(isOn ? Tokens.Colors.ink : Tokens.Colors.quiet)
-            .frame(width: 52, height: actionSize)
-            .background {
-                if isOn {
-                    Capsule().fill(Tokens.Colors.fill)
-                }
-            }
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(item.title)
-        .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : [.isButton])
     }
 }
 
-/// A time-of-day greeting. The home screen says hello before it says work.
-enum Greeting {
-    static func now(_ date: Date = Date()) -> String {
-        switch Calendar.current.component(.hour, from: date) {
-        case 0..<5: "Still up?"
-        case 5..<12: "Good morning"
-        case 12..<17: "Good afternoon"
-        case 17..<22: "Good evening"
-        default: "Good night"
+private struct CaptureToolbar: ViewModifier {
+    let onAdd: () -> Void
+    let onRecord: () -> Void
+    let onSettings: () -> Void
+
+    func body(content: Content) -> some View {
+        content.toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button("Settings", systemImage: "gearshape", action: onSettings)
+            }
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button("Record", systemImage: "mic", action: onRecord)
+                Button("Add reminder", systemImage: "plus", action: onAdd)
+            }
         }
     }
 }
 
 // MARK: - Empty states
 
-/// Replaces ContentUnavailableView, which brings its own grey list styling.
 struct QuietEmptyState: View {
     let glyph: String
     let title: String
@@ -426,11 +326,12 @@ struct QuietEmptyState: View {
     var body: some View {
         VStack(spacing: Tokens.Spacing.sm) {
             Image(systemName: glyph)
-                .font(.system(size: 32, weight: .light))
-                .foregroundStyle(Tokens.Colors.faint)
+                .font(.system(size: 28, weight: .light))
+                .foregroundStyle(Tokens.Colors.accent)
+                .padding(.bottom, Tokens.Spacing.sm)
             Text(title)
-                .font(Tokens.Typo.body)
-                .foregroundStyle(Tokens.Colors.quiet)
+                .font(Tokens.Typo.cardTitle)
+                .foregroundStyle(Tokens.Colors.ink)
             if let message {
                 Text(message)
                     .font(Tokens.Typo.label)
@@ -444,9 +345,6 @@ struct QuietEmptyState: View {
 }
 
 extension View {
-    /// A List row that keeps none of List's decoration: no fill, no
-    /// separator, and gutter-width insets so the card inside it lines up
-    /// with every other screen.
     func plainRow(inset: Bool = true) -> some View {
         listRowInsets(
             EdgeInsets(
@@ -458,24 +356,5 @@ extension View {
         )
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
-    }
-}
-
-/// A header with no title — just the round actions, right-aligned.
-///
-/// The screens that carry one big title use `ScreenHeader`. On the reminders
-/// list the items are the content and a greeting above them was one more
-/// thing to read before getting to them.
-struct CompactHeader<Trailing: View>: View {
-    @ViewBuilder var trailing: Trailing
-
-    var body: some View {
-        HStack {
-            Spacer()
-            trailing
-        }
-        .padding(.horizontal, Tokens.Layout.gutter)
-        .padding(.top, Tokens.Spacing.sm)
-        .padding(.bottom, Tokens.Spacing.md)
     }
 }

@@ -29,13 +29,14 @@ struct ReminderEditView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section {
-                    TextField("Title", text: $title)
+                Section("What’s on your mind?") {
+                    TextField("Reminder title", text: $title)
+                        .font(Tokens.Typo.cardTitle)
                     TextField("Notes", text: $notes, axis: .vertical)
                         .lineLimit(3...6)
                 }
 
-                Section {
+                Section("When") {
                     Toggle("Due date", isOn: $hasDueDate.animation())
                     if hasDueDate {
                         DatePicker(
@@ -67,11 +68,13 @@ struct ReminderEditView: View {
                             Label("Add location alert", systemImage: "location")
                         }
                     }
+                } header: {
+                    Text("Where")
                 } footer: {
-                    Text("Fired by the system through Apple Reminders — works even when Dundu isn't running.")
+                    Text("Apple Reminders delivers location alerts, even when Dundu is closed.")
                 }
 
-                Section {
+                Section("Organize") {
                     Picker("Priority", selection: $priority) {
                         Text("None").tag(ItemPriority.none)
                         Text("High").tag(ItemPriority.high)
@@ -86,6 +89,7 @@ struct ReminderEditView: View {
                 }
             }
             .dunduFormBackground()
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle(existing == nil ? "New Reminder" : "Edit Reminder")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

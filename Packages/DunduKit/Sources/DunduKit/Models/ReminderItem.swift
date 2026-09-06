@@ -37,6 +37,14 @@ public final class ReminderItem {
     /// Tombstone. Non-nil means deleted; purge after 30 days.
     public var tombstonedAt: Date?
     public var originRaw: String = ItemOrigin.local.rawValue
+    /// Travel with the item in CloudKit. A separate SyncMapping can arrive
+    /// later (or be coalesced after a conflict); that must never turn an
+    /// existing Apple reminder into a new outbound creation.
+    public var eventKitExternalID: String?
+    public var eventKitBaseSnapshot: Data?
+    /// Only a deliberate deletion made by a current client can delete from
+    /// Apple. Old CloudKit tombstones may predate a restore of the data.
+    public var eventKitDeletionRequestedAt: Date?
     public var reviewStateRaw: String = ReviewState.none.rawValue
     public var locationAlarm: LocationAlarm?
 

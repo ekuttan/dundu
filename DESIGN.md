@@ -1,120 +1,68 @@
-# Dundu — design system (iOS)
+# Dundu — minimal, native iOS
 
-What the iPhone app is built from, and why. Tokens live in
-[`Shared/DesignTokens.swift`](Shared/DesignTokens.swift), the shared views in
-[`iOS/DunduControls.swift`](iOS/DunduControls.swift), and the bar's
-scroll behaviour in [`iOS/BarChrome.swift`](iOS/BarChrome.swift). Nothing in
-a screen file should define its own spacing, radius or colour.
+The interface follows Apple's current system design: standard SwiftUI navigation,
+semantic system colors, SF typography, and content with minimal decoration.
+On supported iOS versions, native tab bars and toolbars adopt Liquid Glass
+automatically. Older supported versions retain their native appearance.
 
-## The five rules
+Reference: [Apple — Adopting Liquid Glass](https://developer.apple.com/documentation/technologyoverviews/adopting-liquid-glass).
 
-1. **One white page.** The ground and a card are the same white. Content is
-   separated by space, not by a change of surface, so a list of reminders
-   reads as one page rather than a stack of tiles.
-2. **No outlines.** A surface is told apart by its fill. Borders and
-   separators are the exception that has to earn its place — `hairline` is
-   for dividing rows *inside* one card, nothing else.
-3. **Type carries the hierarchy.** One large title per screen, everything
-   under it much smaller. There is no navigation bar to do this job.
-4. **One accent, spent once.** Blue means "this does something": the add
-   button, a badge, a live recording. Chrome — a selected tab, a heading, a
-   primary button — is ink and grey. Spending the accent twice makes neither
-   read.
-5. **Chrome floats, content scrolls under it.** The bar is a material
-   capsule over the page, never a strip framing it.
+## What changed from the first redesign
 
-## Tokens
-
-| Group | Values | Use |
-|---|---|---|
-| `Spacing` | `xs 4 · sm 8 · md 12 · lg 16 · xl 20 · xxl 32` | padding and stack spacing |
-| `Radius` | `chip 14 · block 18 · card 22 · sheet 28` | corner radii, always `.continuous` |
-| `Layout` | `gutter 20 · control 44 · headerButton 38 · barHeight 56 · barInset 152` | margins, tap targets, the bar's footprint |
-| `Shadow` | `floating · accent` | only under things that hover |
-| `Anim` | `content · chrome · notchSpring` | springs; content moves, chrome snaps |
-
-### Colour
-
-| Token | Means |
-|---|---|
-| `ground` | the page |
-| `card` | a raised surface (same white in light mode — see rule 1) |
-| `fill` | a quieter fill *inside* a card: chips, wells, chrome buttons, the selected tab |
-| `ink` / `quiet` / `faint` | first, second and third rank type |
-| `hairline` | a divider between rows inside one card |
-| `accent` | the one blue signal, flat (the gradient's two stops sit close enough to read as one colour) |
-| `hueMeeting` / `hueTask` / `hueTravel` / `hueUrgent` / `hueDone` | category hues, only ever shown at `blockFill` strength (14%) |
-| `overdue` / `dueSoon` / `meeting` | status colours, shared with the Mac notch |
-
-`paper` and `surface` are kept as aliases of `card` and `fill` so the Mac
-surfaces keep compiling; new code should use the current names.
-
-### Type
-
-All SF Rounded — the warmth of the app comes mostly from that one choice.
-`largeTitle 34` · `screenTitle 20` · `cardTitle 17` · `sectionTitle 15` ·
-`body 16` · `blockTitle 13` · `label 13` · `caption 12` · `rail 10`.
-
-## Surfaces
-
-- `cardSurface(_:radius:)` — flat fill, big corners, no border. The single
-  surface treatment in the app.
-- `floatingSurface(_ shape:)` — `.regularMaterial`, a half-point highlight
-  and one soft shadow. Only the tab bar and its action capsule use it.
-- `dunduFormBackground()` — drops the grouped-grey backdrop from a stock
-  `Form` so it sits on our ground. Real forms stay real forms.
-- `clearsFloatingBar()` — bottom content margin of `Layout.barInset` so a
-  scroll view's last row clears the bar. Every scrolling screen needs it;
-  anything presented as a sheet does not.
-
-## Components
-
-| View | What it is |
-|---|---|
-| `ScreenHeader` | the large title, an optional subtitle, and round actions on the right |
-| `CompactHeader` | actions only, for screens where the content is the title |
-| `CircleButton` | a glyph in a soft circle — `.soft`, `.accent`, `.onCard` |
-| `SoftCard` | a padded card, optionally washed with a hue |
-| `CardHeader` | a card's tinted heading line: glyph, title, trailing detail |
-| `TrayChip` | the compact card the Today tray is made of |
-| `PillButton` | the one filled control on a screen — `.primary`, `.accent`, `.quiet` |
-| `PressableStyle` | everything tappable sinks 4% |
-| `QuietEmptyState` | replaces `ContentUnavailableView`, which brings its own list styling |
-| `plainRow(inset:)` | a `List` row with none of `List`'s decoration |
+| Before | After | Why |
+| --- | --- | --- |
+| Warm ivory and teal branding | System backgrounds, primary/secondary labels, blue tint | Matches iOS and adapts to appearance settings |
+| Serif titles and brand labels | Native navigation titles in the system font | Removes decorative hierarchy |
+| Custom five-control dock | Native TabView with three destinations | Gives navigation to the system |
+| Capture actions inside the dock | Native toolbar actions for voice and add | Separates actions from destinations |
+| Summary cards and greeting | Reminder content directly below list filters | Less to scan before reaching tasks |
+| Separate card for every reminder | Standard grouped List rows | Denser, familiar, and supports native swipe actions |
+| Large clock card and slogan | Small current-time readout above the timeline | Keeps the schedule primary |
+| Marketing-style secondary screens | Plain copy, native controls, and quiet surfaces | Keeps the entire app consistent |
 
 ## Navigation
 
-Three destinations — Reminders, Today, Inbox — in a floating glass pill, and
-the two things you *do* beside it in their own capsule: the mic, and the
-accent-filled add button. Both capsules are `barHeight` tall so they read as
-one piece of chrome.
+`DunduWorkspace` owns the native `TabView` and an independent `NavigationStack`
+for Reminders, Today, and Inbox. Reminders remains the initial destination. Each
+screen has native toolbar buttons for Settings, Record, and Add. Inbox displays
+its pending count as a native tab badge.
 
-Settings is not a destination. It opens as a sheet from the gear in the
-Reminders header, and everything under it (Apple Reminders, Google Calendar,
-Profile context) pushes inside that sheet.
+Reminders uses native search, existing list filters, grouped rows, and an
+expandable Completed section. Completion buttons, editing, both swipe directions,
+drag-to-list moves, snooze presets, custom dates, and delete remain available.
 
-`BarChrome` collapses the bar while the user is reading: scrolling down
-slides the tab pill and the mic out behind the add button, scrolling up or
-settling near the top brings them back. A screen opts in by taking a
-`BarChrome`, putting `ScrollProbe()` as the first row of its scroll content,
-and adding `.tracksScroll(chrome)` to the scroll view. (iOS 18 has
-`onScrollGeometryChange` for this; the deployment target is 17, so a probe
-it is.)
+Today keeps day paging, the current time, the schedule grid, meeting joins,
+editing, reminder completion, and the existing untimed/overdue tray and overflow.
+Inbox retains repair and routing decisions, edit, and dismiss.
 
-## Things deliberately not done
+## Visual rules
 
-- **No colour dots in front of names.** At 6pt an arbitrary Reminders colour
-  reads as debris. The selected filter chip carries its list's colour
-  instead, and headings are plain type.
-- **No labels under the tab glyphs.** A second row of type there competes
-  with the screen's own title.
-- **No gradient on the accent.** A gradient reads as decoration; this colour
-  is meant to read as a signal.
-- **No shadows on cards.** Only floating chrome casts one.
+- Use native navigation, search, forms, pickers, and buttons wherever appropriate.
+- Use semantic system backgrounds and labels; let light and dark mode resolve them.
+- Use system text styles and Dynamic Type. No serif headings or repeated branding.
+- Keep color for actions, events, and status. Keep content surfaces neutral.
+- Avoid decorative summary panels, slogans, extra shadows, and nested tinted cards.
+- Let the native tab bar reserve its own space. Scroll content only needs a small
+  additional bottom margin; there is no custom floating dock to clear.
+- Press feedback remains short and respects Reduce Motion.
 
-## The Mac side
+Tokens live in `Shared/DesignTokens.swift`; shared controls and native workspace
+navigation live in `iOS/DunduControls.swift`.
 
-The notch and menu bar share `Spacing`, `Radius`, `Anim` and the status
-colours, and nothing else. They are a different surface with different
-constraints, and the iOS card language does not transfer to a panel hanging
-off the notch.
+## Mac
+
+The Mac shares system typography and semantic colors. Its compact menu, settings,
+and black notch retain their existing controls and behavior with minimal branding.
+
+## Functionality boundary
+
+`Packages/DunduKit` remains unchanged. Persistence, Apple and Google sync,
+intelligence, permissions, scheduling, and view mutation helpers retain their
+existing implementations. Changes are limited to presentation and navigation.
+
+## Verification
+
+`Tools/DesignPreview` stages the real views and native workspace in a separate
+Simulator app with memory-only sample data. It omits background sync and connected
+accounts. See its README for capture commands. Preview images are generated under
+`build.noindex/DesignReview`.

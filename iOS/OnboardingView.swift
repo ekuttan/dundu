@@ -8,71 +8,68 @@ struct OnboardingView: View {
     @AppStorage("hasOnboarded") private var hasOnboarded = false
 
     var body: some View {
-        VStack(spacing: Tokens.Spacing.xl) {
-            Spacer()
+        ScrollView {
+            VStack(alignment: .leading, spacing: Tokens.Spacing.xxl) {
+                VStack(spacing: Tokens.Spacing.lg) {
+                    Image(systemName: "checkmark.circle")
+                        .font(.system(size: 52, weight: .light))
+                        .foregroundStyle(Tokens.Colors.accent)
+                    Text("Welcome to Dundu")
+                        .font(Tokens.Typo.largeTitle)
+                        .multilineTextAlignment(.center)
+                    Text("Reminders and calendars, together.")
+                        .font(Tokens.Typo.body)
+                        .foregroundStyle(Tokens.Colors.quiet)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, Tokens.Spacing.xxl)
 
-            Image(systemName: "circle.grid.2x1.left.filled")
-                .font(.system(size: 52))
-                .foregroundStyle(Tokens.Colors.accentGradient)
-
-            Text("Welcome to Dundu")
-                .font(Tokens.Typo.largeTitle)
-                .foregroundStyle(Tokens.Colors.ink)
-
-            VStack(alignment: .leading, spacing: Tokens.Spacing.md) {
-                featureRow(
-                    icon: "checklist",
-                    title: "One place for reminders",
-                    detail: "Two-way sync with Apple Reminders. Everything you add here lands there, and back."
-                )
-                featureRow(
-                    icon: "macwindow",
-                    title: "Lives in the Mac notch",
-                    detail: "Due items and meetings appear under the notch, then get out of the way."
-                )
-                featureRow(
-                    icon: "brain",
-                    title: "On-device intelligence",
-                    detail: "Routing and Siri-typo fixes run on your device. Nothing leaves it."
-                )
-            }
-            .padding(.horizontal, Tokens.Layout.gutter)
-
-            Spacer()
-
-            VStack(spacing: Tokens.Spacing.md) {
-                PillButton(title: "Connect Apple Reminders", style: .accent) {
-                    Task {
-                        _ = try? await ReminderSyncService.bridge.requestFullAccess()
-                        finish()
-                    }
+                VStack(spacing: Tokens.Spacing.md) {
+                    featureRow(icon: "checklist", title: "Stay in sync",
+                               detail: "Reminders sync both ways with Apple. Connect Google Calendar for your meetings.")
+                    featureRow(icon: "macwindow", title: "Available on Mac",
+                               detail: "On your Mac, due reminders and upcoming meetings appear beneath the notch.")
+                    featureRow(icon: "sparkles", title: "Private intelligence",
+                               detail: "On-device intelligence suggests the right list and catches dictation mistakes.")
                 }
 
-                Button("Not now") { finish() }
-                    .font(Tokens.Typo.body)
-                    .buttonStyle(.plain)
-                    .foregroundStyle(Tokens.Colors.quiet)
+                VStack(spacing: Tokens.Spacing.md) {
+                    Button {
+                        Task {
+                            _ = try? await ReminderSyncService.bridge.requestFullAccess()
+                            finish()
+                        }
+                    } label: {
+                        Text("Connect Apple Reminders")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.large)
+                    Button("Start without connecting") { finish() }
+                        .font(Tokens.Typo.label)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(Tokens.Colors.quiet)
+                        .frame(minHeight: Tokens.Layout.control)
+                }
+                .frame(maxWidth: .infinity)
             }
             .padding(.horizontal, Tokens.Layout.gutter)
             .padding(.bottom, Tokens.Spacing.xxl)
+            .frame(maxWidth: 560)
+            .frame(maxWidth: .infinity)
         }
         .background(Tokens.Colors.ground)
         .interactiveDismissDisabled()
     }
 
-    /// One promise per card, so the three read as a list of things the app
-    /// does rather than a wall of paragraphs.
+    /// A simple feature row, without its own surface.
     private func featureRow(icon: String, title: String, detail: String) -> some View {
-        SoftCard {
-            HStack(alignment: .top, spacing: Tokens.Spacing.md) {
+        HStack(alignment: .top, spacing: Tokens.Spacing.md) {
                 Image(systemName: icon)
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(Tokens.Colors.accent)
                     .frame(width: 30, height: 30)
-                    .background {
-                        RoundedRectangle(cornerRadius: 9, style: .continuous)
-                            .fill(Tokens.Colors.blockFill(Tokens.Colors.accent))
-                    }
                 VStack(alignment: .leading, spacing: Tokens.Spacing.xs) {
                     Text(title)
                         .font(Tokens.Typo.cardTitle)
@@ -83,7 +80,7 @@ struct OnboardingView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-        }
+            .padding(.vertical, Tokens.Spacing.md)
     }
 
     private func finish() {

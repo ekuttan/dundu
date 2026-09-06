@@ -51,6 +51,21 @@ func json<T: Encodable>(_ value: T) -> String {
 
 let toolDefinitions: [[String: Any]] = [
     [
+        "name": "remove_duplicate_reminder",
+        "description": "Review a user-identified duplicate pair, then remove only the selected copy. Defaults to read-only. Never use as an automatic title-based cleanup. Applying requires the review_token from a fresh dry run. Recurring, completed, alarm-bearing or differing reminders are refused.",
+        "inputSchema": [
+            "type": "object",
+            "properties": [
+                "keep_id": ["type": "string"],
+                "remove_id": ["type": "string"],
+                "expected_title": ["type": "string"],
+                "dry_run": ["type": "boolean", "default": true],
+                "review_token": ["type": "string"],
+            ],
+            "required": ["keep_id", "remove_id", "expected_title"],
+        ],
+    ],
+    [
         "name": "add_reminder",
         "description": """
             Add a reminder to Apple Reminders on this Mac. It syncs to the \
@@ -111,6 +126,17 @@ let toolDefinitions: [[String: Any]] = [
 func call(tool name: String, arguments: [String: Any]) async -> [String: Any] {
     do {
         switch name {
+        case "remove_duplicate_reminder":
+            guard let keepID = arguments["keep_id"] as? String,
+                  let removeID = arguments["remove_id"] as? String,
+                  let title = arguments["expected_title"] as? String else {
+                return toolResult("Supply keep_id, remove_id and expected_title.", isError: true)
+            }
+            return toolResult(json(try await store.removeDuplicate(
+                keepID: keepID, removeID: removeID, expectedTitle: title,
+                dryRun: arguments["dry_run"] as? Bool ?? true,
+                reviewToken: arguments["review_token"] as? String
+            )))
         case "add_reminder":
             guard let title = (arguments["title"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty else {

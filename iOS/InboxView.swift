@@ -8,8 +8,6 @@ import DunduKit
 /// Most pressing first: something already overdue with a pending question is
 /// the one worth answering now.
 struct InboxView: View {
-    /// Collapses the bar while the user is reading.
-    var barChrome: BarChrome?
     @Environment(\.modelContext) private var context
     @Query(
         filter: #Predicate<ReminderItem> {
@@ -35,15 +33,8 @@ struct InboxView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ScreenHeader(
-                title: "Inbox",
-                subtitle: pendingItems.isEmpty ? nil
-                    : (pendingItems.count == 1 ? "1 question" : "\(pendingItems.count) questions")
-            )
-
             ScrollView {
-                LazyVStack(spacing: 0) {
-                    ScrollProbe()
+                LazyVStack(spacing: Tokens.Spacing.lg) {
                     if pendingItems.isEmpty {
                         QuietEmptyState(
                             glyph: "tray",
@@ -64,10 +55,10 @@ struct InboxView: View {
                 .padding(.horizontal, Tokens.Layout.gutter)
                 .padding(.bottom, Tokens.Spacing.md)
             }
-            .clearsFloatingBar()
-                .tracksScroll(barChrome)
+            .dunduScrollMargins()
         }
         .background(Tokens.Colors.ground)
+        .navigationTitle("Inbox")
         .sheet(item: $editingReminder) { ReminderEditView(existing: $0) }
     }
 
@@ -100,6 +91,7 @@ struct InboxCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Spacing.md) {
             header
+            Divider()
             if let suggested = item.suggestedTitle {
                 question(
                     glyph: "waveform",
@@ -124,13 +116,9 @@ struct InboxCard: View {
             }
             footer
         }
-        .padding(.vertical, Tokens.Spacing.lg)
+        .padding(Tokens.Spacing.lg)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(Tokens.Colors.hairline)
-                .frame(height: 1)
-        }
+        .cardSurface()
     }
 
     /// A tinted heading line saying where the item came from, then what it
@@ -162,6 +150,7 @@ struct InboxCard: View {
     private var footer: some View {
         HStack {
             Button("Edit", action: onEdit)
+                .frame(minHeight: Tokens.Layout.control)
                 .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(Tokens.Colors.quiet)
             Spacer()
@@ -169,10 +158,12 @@ struct InboxCard: View {
                 context.dismissAllReviews(item)
                 afterAction()
             }
+            .frame(minHeight: Tokens.Layout.control)
             .font(.system(size: 13, weight: .medium))
             .foregroundStyle(Tokens.Colors.quiet)
         }
         .buttonStyle(.plain)
+        .frame(minHeight: Tokens.Layout.control)
     }
 
     /// One question: what Dundu thinks, why, and the two answers. The accept
@@ -190,6 +181,8 @@ struct InboxCard: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: Tokens.Spacing.sm) {
             HStack(alignment: .top, spacing: Tokens.Spacing.sm) {
+                Image(systemName: glyph)
+                    .foregroundStyle(Tokens.Colors.accent)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.system(size: 15, weight: .medium))
@@ -208,10 +201,10 @@ struct InboxCard: View {
                 Button(action: onAccept) {
                     Text(accept)
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Tokens.Colors.card)
+                        .foregroundStyle(Tokens.Colors.onAccent)
                         .padding(.horizontal, Tokens.Spacing.lg)
-                        .padding(.vertical, Tokens.Spacing.sm + 2)
-                        .background(Capsule().fill(Tokens.Colors.ink))
+                        .frame(minHeight: Tokens.Layout.control)
+                        .background(Capsule().fill(Tokens.Colors.accent))
                 }
                 .buttonStyle(PressableStyle())
 
@@ -220,10 +213,12 @@ struct InboxCard: View {
                         .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(Tokens.Colors.quiet)
                         .padding(.horizontal, Tokens.Spacing.sm)
-                        .padding(.vertical, Tokens.Spacing.sm + 2)
+                        .frame(minHeight: Tokens.Layout.control)
                 }
                 .buttonStyle(PressableStyle())
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+
     }
 }

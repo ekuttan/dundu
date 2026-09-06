@@ -89,12 +89,24 @@ public enum ReminderPushPlanner {
         public var isTombstoned: Bool
         public var modifiedAt: Date
         public var payload: ReminderWritePayload
+        public var externalID: String?
+        public var syncBase: ReminderWritePayload?
+        public var allowsRemoteCreation: Bool
+        public var hasDeletionIntent: Bool
 
-        public init(localID: UUID, isTombstoned: Bool, modifiedAt: Date, payload: ReminderWritePayload) {
+        public init(
+            localID: UUID, isTombstoned: Bool, modifiedAt: Date, payload: ReminderWritePayload,
+            externalID: String? = nil, syncBase: ReminderWritePayload? = nil,
+            allowsRemoteCreation: Bool = true, hasDeletionIntent: Bool = true
+        ) {
             self.localID = localID
             self.isTombstoned = isTombstoned
             self.modifiedAt = modifiedAt
             self.payload = payload
+            self.externalID = externalID
+            self.syncBase = syncBase
+            self.allowsRemoteCreation = allowsRemoteCreation
+            self.hasDeletionIntent = hasDeletionIntent
         }
     }
 
@@ -113,6 +125,7 @@ public enum ReminderPushPlanner {
                 continue
 
             case (nil, false):
+                guard item.allowsRemoteCreation && item.externalID == nil else { continue }
                 changes.append(PlannedReminderChange(
                     localID: item.localID,
                     action: .create,
@@ -121,6 +134,7 @@ public enum ReminderPushPlanner {
                 ))
 
             case (let mapping?, true):
+                guard item.hasDeletionIntent else { continue }
                 changes.append(PlannedReminderChange(
                     localID: item.localID,
                     action: .delete(externalID: mapping.externalID),

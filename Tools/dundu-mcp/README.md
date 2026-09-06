@@ -68,3 +68,18 @@ Claude Code launches. If the lists come back as JSON, it is working.
 `"Reminders access was refused"` means this step has not happened yet. If no
 prompt appears at all, run `tccutil reset Reminders app.scoop.dundu.mcp`
 first — a previous refusal is remembered.
+
+## Targeted duplicate repair
+
+`remove_duplicate_reminder` is a deliberate maintenance tool for a pair the
+user has identified. Supply `keep_id`, `remove_id`, and `expected_title`.
+The default `dry_run: true` reviews the pair without writing; save that review
+before proceeding. Applying requires `dry_run: false` and the unchanged
+`review_token` returned by the review.
+
+It refuses identical IDs, differing content or lists, completed reminders,
+recurrence, alarms, read-only lists, and stale review tokens. A missing start
+date on the removed copy is allowed only when keeping the fuller record.
+There is no title-based sweep or automatic cleanup. EventKit does not expose
+all Apple Reminders metadata (such as tags and subtasks), so this tool must
+only be used for user-confirmed copies after review in Apple Reminders.

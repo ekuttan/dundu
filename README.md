@@ -67,6 +67,14 @@ Sync mappings carry a `baseSnapshot` — the field values at last successful syn
 - **Location alarms are fired by the system, not Dundu.** They map to EventKit alarms, so Apple Reminders monitors the geofence — no Always-location permission, no battery cost.
 - **One design system, written down.** Tokens in `Shared/`, shared views in `iOS/DunduControls.swift`, and no screen defining its own spacing or colour. See [DESIGN.md](DESIGN.md) for the rules, the tokens and the navigation model.
 
+## Interface
+
+The iPhone interface uses native iOS navigation, system typography and colors,
+grouped reminders, a daily schedule, and focused suggestion reviews. The Mac
+shares the same minimal visual language. See [DESIGN.md](DESIGN.md) for the visual language
+and [the isolated preview harness](Tools/DesignPreview/README.md) for sample-data
+Simulator previews.
+
 ## Requirements
 
 - Xcode 26+

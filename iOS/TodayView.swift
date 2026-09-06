@@ -37,6 +37,7 @@ struct TodayView: View {
             content(now: context.date)
         }
         .background(Tokens.Colors.ground)
+        .navigationTitle(Self.headerWeekday(shownDate(now: Date()), offset: dayOffset))
         .sheet(item: $editingReminder) { ReminderEditView(existing: $0) }
         .sheet(item: $editingEvent) { EventEditView(event: $0) }
         .sheet(isPresented: $showingAllUnscheduled) { unscheduledSheet }
@@ -47,6 +48,19 @@ struct TodayView: View {
             dayHeader(now: now)
 
             deniedBanner
+
+            HStack {
+                if isToday { clock(now: now) }
+                Spacer()
+                if inboxCount > 0 {
+                    Button(action: onOpenInbox) {
+                        Label("\(inboxCount) to review", systemImage: "tray")
+                            .font(Tokens.Typo.caption)
+                    }
+                }
+            }
+            .padding(.horizontal, Tokens.Layout.gutter)
+            .padding(.vertical, Tokens.Spacing.md)
 
             DayTimeline(
                 entries: timelineEntries(now: now),
@@ -59,25 +73,22 @@ struct TodayView: View {
             .frame(maxHeight: .infinity)
             .padding(.horizontal, Tokens.Layout.gutter)
 
-            if isToday {
-                clock(now: now)
-            }
-
             tray
         }
         // Clears the floating bar: this screen doesn't scroll as a whole, so
         // the tray has to stop above it.
-        .padding(.bottom, Tokens.Layout.barInset - Tokens.Spacing.lg)
+        .padding(.bottom, Tokens.Spacing.sm)
     }
 
     /// Header doubles as the day pager: the day in large type on the left,
     /// a step either way on the right, and a way back to today that only
     /// appears once you have left it.
     private func dayHeader(now: Date) -> some View {
-        ScreenHeader(
-            title: Self.headerWeekday(shownDate(now: now), offset: dayOffset),
-            subtitle: Self.headerDate(shownDate(now: now))
-        ) {
+        HStack {
+            Text(Self.headerDate(shownDate(now: now)))
+                .font(Tokens.Typo.label)
+                .foregroundStyle(Tokens.Colors.quiet)
+            Spacer(minLength: Tokens.Spacing.sm)
             HStack(spacing: Tokens.Spacing.sm) {
                 // Only offered when it does something — on today it would be
                 // a button that visibly changes nothing.
@@ -96,10 +107,18 @@ struct TodayView: View {
                     }
                     .buttonStyle(PressableStyle())
                 }
-                CircleButton(glyph: "chevron.left") { step(-1) }
-                CircleButton(glyph: "chevron.right") { step(1) }
+                Button("Previous day", systemImage: "chevron.left") { step(-1) }
+                    .labelStyle(.iconOnly)
+                    .frame(width: 44, height: 44)
+                    .accessibilityLabel("Previous day")
+                Button("Next day", systemImage: "chevron.right") { step(1) }
+                    .labelStyle(.iconOnly)
+                    .frame(width: 44, height: 44)
+                    .accessibilityLabel("Next day")
             }
         }
+        .padding(.horizontal, Tokens.Layout.gutter)
+        .padding(.vertical, Tokens.Spacing.sm)
     }
 
     private func step(_ days: Int) {
@@ -126,43 +145,13 @@ struct TodayView: View {
         now.formatted(.dateTime.weekday(.wide).day().month(.wide))
     }
 
-    /// `.dateTime.hour(.defaultDigits)` pads to "04:15"; the reference reads
-    /// "2:40". The localised template gives the unpadded hour, and the
-    /// meridiem comes out because it is drawn separately at a smaller size.
-    private static let clockFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.setLocalizedDateFormatFromTemplate("jmm")
-        formatter.dateFormat = formatter.dateFormat?
-            .replacingOccurrences(of: "a", with: "")
-            .trimmingCharacters(in: .whitespaces)
-        return formatter
-    }()
-
-    /// Locales on a 24-hour clock have no meridiem, so the suffix disappears
-    /// there rather than printing an empty box next to the time.
-    private static func meridiem(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.setLocalizedDateFormatFromTemplate("j")
-        guard formatter.dateFormat?.contains("a") == true else { return "" }
-        formatter.dateFormat = "a"
-        return formatter.string(from: date)
-    }
-
     // MARK: - Clock
 
     private func clock(now: Date) -> some View {
-        HStack(alignment: .lastTextBaseline, spacing: 2) {
-            Text(Self.clockFormatter.string(from: now))
-                .font(Tokens.Typo.clock(44))
-                .foregroundStyle(Tokens.Colors.ink)
-            Text(Self.meridiem(now))
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(Tokens.Colors.ink)
-        }
-        .monospacedDigit()
-        .padding(.top, Tokens.Spacing.lg)
-        .accessibilityElement()
-        .accessibilityLabel(Text(now.formatted(date: .omitted, time: .shortened)))
+        Text(now.formatted(date: .omitted, time: .shortened))
+            .font(Tokens.Typo.label)
+            .monospacedDigit()
+            .foregroundStyle(Tokens.Colors.quiet)
     }
 
     // MARK: - Timeline contents
@@ -277,7 +266,12 @@ struct TodayView: View {
     private var tray: some View {
         let items = trayItems
         if !items.isEmpty {
-            ScrollView(.horizontal, showsIndicators: false) {
+            VStack(alignment: .leading, spacing: Tokens.Spacing.sm) {
+                Text("Anytime")
+                    .font(Tokens.Typo.label)
+                    .foregroundStyle(Tokens.Colors.quiet)
+                    .padding(.horizontal, Tokens.Layout.gutter)
+                ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: Tokens.Spacing.sm) {
                     ForEach(items.prefix(trayVisibleLimit)) { item in
                         TrayChip(
@@ -311,6 +305,7 @@ struct TodayView: View {
                 }
                 .padding(.horizontal, Tokens.Layout.gutter)
                 .padding(.vertical, Tokens.Spacing.xs)
+            }
             }
             .padding(.top, Tokens.Spacing.lg)
         }

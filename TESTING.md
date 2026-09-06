@@ -128,3 +128,73 @@ and what "working" looks like. Report anything off and it gets fixed.
 - The notch's gear opens settings — `showSettingsWindow:` never reached the
   scene from a nonactivating panel in an LSUIElement app, so Dundu owns the
   window now; the ⋯ menu uses the same opener
+
+## UI redesign verification — 7 September 2026
+
+- iOS Simulator app build: passed (`Dundu-iOS`, signing disabled).
+- macOS app build: passed (`Dundu-macOS`, signing disabled).
+- Existing DunduKit suite: 126 tests in 20 suites passed.
+- Confirmed no changes to `Packages/DunduKit`; compared 23 existing view action,
+  persistence, date-resolution, and capture functions against the prior revision.
+- Inspected Simulator renders of Reminders, Today, Inbox, onboarding, the reminder
+  editor, and Settings. Checked the reminder screen in dark mode and with
+  accessibility-medium Dynamic Type.
+- Inspected native Mac renders of the menu bar view and settings window.
+- Visual fixtures used memory-only stores and separate preview bundle identifiers.
+  Real account synchronization, microphone capture, physical-device notch behavior,
+  and end-to-end external integrations were not exercised in this pass.
+
+Preview instructions are in `Tools/DesignPreview/README.md`. Local screenshots
+are generated under `build.noindex/DesignReview` and are intentionally ignored by
+Git. Test builds and logs are local artifacts; the production entry points and
+account settings are unchanged.
+
+### Minimal native iOS revision
+
+The follow-up revision replaces the custom dock with native TabView and toolbar
+controls, uses semantic system colors and SF text styles, and removes decorative
+summary panels and branding. Both iOS and Mac production targets build. The same
+23 behavior functions and the entire DunduKit package remain unchanged. Native
+Simulator screens were checked in light mode, dark mode, and accessibility-medium
+text. Preview staging now removes obsolete Swift files when source views are deleted.
+
+### Reminder identity regression — 2026-09-07
+
+- Full DunduKit suite: **143 tests in 22 suites passed** (17 new identity and history-replay tests).
+- iOS Simulator, signed iOS device and macOS builds passed.
+- Installed and launched the signed update on the paired iPhone 16 and Mac.
+- Migrated an isolated, CloudKit-disabled copy of the existing Mac store:
+  all 889 reminder records survived; 415 external identities were saved.
+- The initial live Mac migration retained all 415 active reminders and identities.
+  A subsequent CloudKit history import replayed 380 old deletion flags and
+  duplicate mappings. Apple still contained all 414 expected records after
+  the one deliberate duplicate removal. Sync was paused while the issue was
+  diagnosed; additional regression tests cover that history replay.
+- The final live audit verified 414 active Mac records with 414 unique Apple
+  identities and exactly one instance of the user-identified duplicate title.
+  Comparing the live Apple IDs with the original backup confirmed that the
+  selected duplicate was the only record removed.
+- A second isolated rehearsal restored all 414 Apple identities locally and
+  a subsequent plan proposed zero local or remote writes. Its logs are in
+  `/private/tmp/dundu-reconcile-copy.log`.
+- Identity regressions cover an imported item arriving without its mapping,
+  an already-claimed remote, edits during mapping delivery, EventKit delivery
+  lag, a mapping arriving first, conflicting/repeated mappings, new typed and
+  voice reminders, and persistence without a mapping record.
+- The targeted repair tool's live refusal checks rejected equal IDs, a wrong
+  title and an invalid review token without changing reminders.
+- A user-identified duplicate pair was reviewed and reduced to one Apple
+  reminder, retaining the record with additional start-date metadata. The
+  before/after review and a consistent store backup are under the ignored
+  `build.noindex/SyncRepair/` directory; no personal records are committed.
+
+The regression suite simulates partial delivery; it does not prove every
+CloudKit interleaving. Divergent local edits and legacy imported items with no recoverable identity
+are retained without exporting new copies. Only identical local copies already
+linked to the same observed Apple identity are consolidated. Old unmarked
+tombstones cannot delete restored Apple records; explicit current-client
+deletions still propagate. Dangling mappings get a five-minute delivery grace
+period before the existing Apple record can be imported again. Equal
+names alone are never authority to delete reminders. Google account flows,
+voice permissions and every interaction on physical hardware still require
+full end-to-end acceptance testing.

@@ -1,10 +1,12 @@
 import EventKit
 import Foundation
+import CryptoKit
 
 /// A reminder as it crosses the process boundary. `EKReminder` is neither
 /// Sendable nor JSON, so nothing above this layer ever sees one.
 struct ReminderSnapshot: Sendable, Codable {
     var id: String
+    var externalID: String? = nil
     var title: String
     var notes: String?
     var due: String?
@@ -24,6 +26,7 @@ enum RemindersError: LocalizedError {
     case noSuchList(String)
     case noSuchReminder(String)
     case badDate(String)
+    case unsafeDuplicate(String)
 
     var errorDescription: String? {
         switch self {
@@ -35,6 +38,8 @@ enum RemindersError: LocalizedError {
             "No reminder with id \(id). It may have been completed or deleted already."
         case .badDate(let raw):
             "Couldn't read “\(raw)” as a date. Use ISO 8601 (2026-08-17T09:00:00Z), “2026-08-17 09:00”, or “2026-08-17”."
+        case .unsafeDuplicate(let reason):
+            "Duplicate cleanup refused: \(reason)"
         }
     }
 }
@@ -114,6 +119,7 @@ actor RemindersStore {
                     .map { reminder in
                         ReminderSnapshot(
                             id: reminder.calendarItemIdentifier,
+                            externalID: reminder.calendarItemExternalIdentifier,
                             title: reminder.title ?? "",
                             notes: reminder.notes,
                             due: reminder.dueDateComponents
@@ -148,6 +154,76 @@ actor RemindersStore {
         return snapshot(reminder)
     }
 
+    /// Deliberate cleanup of one explicitly selected pair, never a title
+    /// sweep. Review first, then submit the returned token to remove only
+    /// the selected copy. Any intervening edit invalidates that token.
+    func removeDuplicate(
+        keepID: String, removeID: String, expectedTitle: String,
+        dryRun: Bool, reviewToken: String?
+    ) async throws -> DuplicateReview {
+        try await ensureAccess()
+        guard keepID != removeID,
+              let keep = store.calendarItem(withIdentifier: keepID) as? EKReminder,
+              let remove = store.calendarItem(withIdentifier: removeID) as? EKReminder else {
+            throw RemindersError.unsafeDuplicate("select two different, existing reminders")
+        }
+        guard keep.title == expectedTitle, remove.title == expectedTitle,
+              keep.calendar.calendarIdentifier == remove.calendar.calendarIdentifier,
+              keep.notes == remove.notes, keep.url == remove.url,
+              keep.location == remove.location, keep.timeZone == remove.timeZone,
+              keep.priority == remove.priority,
+              // Dundu's historical create path omitted startDateComponents.
+              // Allow keeping the richer record when the selected copy
+              // has none; never discard a distinct start date.
+              (keep.startDateComponents == remove.startDateComponents || remove.startDateComponents == nil),
+              keep.dueDateComponents == remove.dueDateComponents,
+              !keep.isCompleted, !remove.isCompleted,
+              keep.completionDate == nil, remove.completionDate == nil,
+              !keep.hasRecurrenceRules, !remove.hasRecurrenceRules,
+              (keep.alarms ?? []).isEmpty, (remove.alarms ?? []).isEmpty else {
+            let fields: [(String, Bool)] = [
+                ("title", keep.title == remove.title && keep.title == expectedTitle),
+                ("list", keep.calendar.calendarIdentifier == remove.calendar.calendarIdentifier),
+                ("notes", keep.notes == remove.notes), ("URL", keep.url == remove.url),
+                ("location", keep.location == remove.location), ("time zone", keep.timeZone == remove.timeZone),
+                ("priority", keep.priority == remove.priority),
+                ("start date", keep.startDateComponents == remove.startDateComponents),
+                ("due date", keep.dueDateComponents == remove.dueDateComponents),
+                ("completion", !keep.isCompleted && !remove.isCompleted && keep.completionDate == nil && remove.completionDate == nil),
+                ("recurrence", !keep.hasRecurrenceRules && !remove.hasRecurrenceRules),
+                ("alarms", (keep.alarms ?? []).isEmpty && (remove.alarms ?? []).isEmpty),
+            ]
+            let startDetail = keep.startDateComponents == remove.startDateComponents ? "" :
+                "; kept start: \(String(describing: keep.startDateComponents)); selected copy start: \(String(describing: remove.startDateComponents))"
+            throw RemindersError.unsafeDuplicate("review these fields manually: " + fields.filter { !$0.1 }.map(\.0).joined(separator: ", ") + startDetail)
+        }
+        guard remove.calendar.allowsContentModifications else {
+            throw RemindersError.unsafeDuplicate("the list is read-only")
+        }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        let record = DuplicateReview(
+            kept: snapshot(keep), removed: snapshot(remove),
+            keptCreatedAt: keep.creationDate, removedCreatedAt: remove.creationDate,
+            keptModifiedAt: keep.lastModifiedDate, removedModifiedAt: remove.lastModifiedDate,
+            keptStartDateComponents: keep.startDateComponents.map { String(describing: $0) },
+            removedStartDateComponents: remove.startDateComponents.map { String(describing: $0) },
+            applied: false, reviewToken: ""
+        )
+        let digest = SHA256.hash(data: try encoder.encode(record))
+            .map { String(format: "%02x", $0) }.joined()
+        var result = record
+        result.reviewToken = digest
+        if !dryRun {
+            guard reviewToken == digest else {
+                throw RemindersError.unsafeDuplicate("review the current pair first; the token is missing or stale")
+            }
+            try store.remove(remove, commit: true)
+            result.applied = true
+        }
+        return result
+    }
+
     // MARK: - Helpers
 
     private func resolveList(named name: String?) throws -> EKCalendar {
@@ -171,6 +247,7 @@ actor RemindersStore {
     private func snapshot(_ reminder: EKReminder) -> ReminderSnapshot {
         ReminderSnapshot(
             id: reminder.calendarItemIdentifier,
+            externalID: reminder.calendarItemExternalIdentifier,
             title: reminder.title ?? "",
             notes: reminder.notes,
             due: reminder.dueDateComponents
@@ -181,6 +258,19 @@ actor RemindersStore {
             priority: reminder.priority
         )
     }
+}
+
+struct DuplicateReview: Codable, Sendable {
+    var kept: ReminderSnapshot
+    var removed: ReminderSnapshot
+    var keptCreatedAt: Date?
+    var removedCreatedAt: Date?
+    var keptModifiedAt: Date?
+    var removedModifiedAt: Date?
+    var keptStartDateComponents: String?
+    var removedStartDateComponents: String?
+    var applied: Bool
+    var reviewToken: String
 }
 
 /// Dates in and out. Output is always ISO 8601; input is forgiving, because

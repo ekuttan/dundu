@@ -60,6 +60,7 @@ struct VoiceCaptureView: View {
         VStack(spacing: 0) {
             HStack {
                 CircleButton(glyph: "xmark") { abandon() }
+                    .accessibilityLabel("Close voice capture")
                 Spacer()
                 Label(
                     recorder.isRecording ? "Listening" : "Paused",
@@ -81,6 +82,14 @@ struct VoiceCaptureView: View {
             }
             .padding(.horizontal, Tokens.Layout.gutter)
             .padding(.vertical, Tokens.Spacing.md)
+
+            VStack(alignment: .leading, spacing: Tokens.Spacing.sm) {
+                Text("Voice capture")
+                    .font(Tokens.Typo.largeTitle)
+                    .foregroundStyle(Tokens.Colors.ink)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(Tokens.Layout.gutter)
 
             ScrollView {
                 Text(recorder.transcript.isEmpty ? Self.prompt : recorder.transcript)
@@ -293,6 +302,7 @@ struct VoiceCaptureView: View {
                 subtitle: "Edit anything before saving"
             ) {
                 CircleButton(glyph: "xmark") { abandon() }
+                    .accessibilityLabel("Close voice capture")
             }
 
             ScrollView {

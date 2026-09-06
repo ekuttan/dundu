@@ -16,9 +16,7 @@ struct RootView: View {
     @AppStorage("hasOnboarded") private var hasOnboarded = false
     @State private var showOnboarding = false
     @State private var showingQuickAdd = false
-    @State private var barChrome = BarChrome()
-    /// Voice capture used to live in the Reminders header. It belongs with
-    /// the other thing you *do*, in the corner stack, reachable from any tab.
+    /// Capture actions are available in each destination’s native toolbar.
     @State private var showingVoiceCapture = false
     @State private var showingSettings = false
     /// Reminders opens first: it is the list you came to check, and Today is
@@ -31,38 +29,13 @@ struct RootView: View {
     ) private var pendingReviews: [ReminderItem]
 
     var body: some View {
-        // The bar floats over the content rather than sitting under it, so
-        // the screens run to the bottom edge and scroll beneath it. Each
-        // scrolling screen keeps its last row clear with `clearsFloatingBar`.
-        ZStack(alignment: .bottom) {
-            // All three stay alive so scroll position and in-progress edits
-            // survive a tab switch, the way TabView used to give us for free.
-            ZStack {
-                tab(.today) {
-                    TodayView(inboxCount: pendingReviews.count) { selectedTab = .inbox }
-                }
-                tab(.lists) {
-                    ListsView(barChrome: barChrome,
-                              onOpenSettings: { showingSettings = true })
-                }
-                tab(.inbox) { InboxView(barChrome: barChrome) }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            DunduTabBar(
-                selection: $selectedTab,
-                items: [
-                    .init(tab: .lists, glyph: "checklist", title: "Reminders"),
-                    .init(tab: .today, glyph: "sun.max", title: "Today"),
-                    .init(tab: .inbox, glyph: "tray", title: "Inbox", badge: pendingReviews.count),
-                ],
-                actions: [
-                    .init(glyph: "mic.fill", title: "Record") { showingVoiceCapture = true },
-                    .init(glyph: "plus", title: "Add", isPrimary: true) { showingQuickAdd = true },
-                ],
-                chrome: barChrome
-            )
-        }
+        DunduWorkspace(
+            selection: $selectedTab,
+            inboxCount: pendingReviews.count,
+            onAdd: { showingQuickAdd = true },
+            onRecord: { showingVoiceCapture = true },
+            onSettings: { showingSettings = true }
+        )
         .background(Tokens.Colors.ground)
         // Set once, at the root: sheets inherit the environment, so every
         // stock control down to a date picker picks up the accent without
@@ -116,18 +89,7 @@ struct RootView: View {
         }
     }
 
-    /// Keeps every tab mounted, showing only the selected one. Hidden tabs
-    /// stop taking hits so their buttons can't be reached through the stack.
-    @ViewBuilder
-    private func tab<Content: View>(
-        _ value: AppTab,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        content()
-            .opacity(selectedTab == value ? 1 : 0)
-            .allowsHitTesting(selectedTab == value)
-            .accessibilityHidden(selectedTab != value)
-    }
+
 }
 
 /// Opened as a sheet from the Reminders header rather than living in the
@@ -140,22 +102,18 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                ScreenHeader(title: "Settings") {
-                    CircleButton(glyph: "xmark") { dismiss() }
-                }
-
                 ScrollView {
                     VStack(alignment: .leading, spacing: Tokens.Spacing.lg) {
                         section("Accounts") {
                             NavigationLink { AppleRemindersView() } label: {
                                 SettingsRow(glyph: "checklist", title: "Apple Reminders",
-                                            tint: Tokens.Colors.hueTask)
+                                            subtitle: "Lists, access, and sync", tint: Tokens.Colors.hueTask)
                             }
                             .buttonStyle(PressableStyle())
                             rowDivider
                             NavigationLink { GoogleAccountsView() } label: {
                                 SettingsRow(glyph: "calendar", title: "Google Calendar",
-                                            tint: Tokens.Colors.hueMeeting)
+                                            subtitle: "Accounts and calendars", tint: Tokens.Colors.hueMeeting)
                             }
                             .buttonStyle(PressableStyle())
                         }
@@ -163,7 +121,7 @@ struct SettingsView: View {
                         section("Intelligence") {
                             NavigationLink { ProfileContextView() } label: {
                                 SettingsRow(glyph: "brain", title: "Profile context",
-                                            tint: Tokens.Colors.hueTravel)
+                                            subtitle: "People, businesses, and aliases", tint: Tokens.Colors.hueTravel)
                             }
                             .buttonStyle(PressableStyle())
                         }
@@ -188,7 +146,13 @@ struct SettingsView: View {
                 }
             }
             .background(Tokens.Colors.ground)
-            .toolbar(.hidden, for: .navigationBar)
+            .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
             // The seeder used to swallow its own failures behind `try?`, so
             // "nothing happened" and "it broke" looked identical.
             .alert(
@@ -233,6 +197,7 @@ struct SettingsView: View {
 struct SettingsRow: View {
     let glyph: String
     let title: String
+    var subtitle: String?
     let tint: Color
     var showsChevron = true
 
@@ -246,9 +211,16 @@ struct SettingsRow: View {
                     RoundedRectangle(cornerRadius: 9, style: .continuous)
                         .fill(Tokens.Colors.blockFill(tint))
                 }
-            Text(title)
-                .font(Tokens.Typo.body)
-                .foregroundStyle(Tokens.Colors.ink)
+            VStack(alignment: .leading, spacing: Tokens.Spacing.xs) {
+                Text(title)
+                    .font(Tokens.Typo.body)
+                    .foregroundStyle(Tokens.Colors.ink)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(Tokens.Typo.caption)
+                        .foregroundStyle(Tokens.Colors.quiet)
+                }
+            }
             Spacer()
             if showsChevron {
                 Image(systemName: "chevron.right")

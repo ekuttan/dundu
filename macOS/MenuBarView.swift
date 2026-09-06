@@ -20,13 +20,26 @@ struct MenuBarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Spacing.md) {
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: Tokens.Spacing.xs) {
+                    Text("Dundu")
+                        .font(.headline)
+                        .foregroundStyle(Tokens.Colors.ink)
+                    Text(Date.now.formatted(.dateTime.weekday(.wide).month(.abbreviated).day()))
+                        .font(Tokens.Typo.caption)
+                        .foregroundStyle(Tokens.Colors.quiet)
+                }
+                Spacer()
+            }
+            .padding(.bottom, Tokens.Spacing.sm)
+
             if accessStatus != .fullAccess {
                 accessBanner
             }
 
             VStack(alignment: .leading, spacing: Tokens.Spacing.sm) {
             HStack(spacing: Tokens.Spacing.sm) {
-                TextField("Quick add…", text: $quickAddTitle)
+                TextField("Add a reminder…", text: $quickAddTitle)
                     .textFieldStyle(.plain)
                     .onSubmit(addReminder)
 
@@ -53,6 +66,17 @@ struct MenuBarView: View {
                 .menuStyle(.borderlessButton)
                 .fixedSize()
                 .help("Add a due date to the new reminder")
+
+                Button(action: addReminder) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(Tokens.Colors.onAccent)
+                        .frame(width: 26, height: 26)
+                        .background(Tokens.Colors.accent, in: RoundedRectangle(cornerRadius: 8))
+                }
+                .buttonStyle(.plain)
+                .disabled(quickAddTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .help("Add reminder")
             }
 
             if let due = quickDueDate {
@@ -123,6 +147,7 @@ struct MenuBarView: View {
                                 .foregroundStyle(Tokens.Colors.faint)
                         }
                         .buttonStyle(.plain)
+                        .help("Complete reminder")
 
                         Text(reminder.title)
                             .font(Tokens.Typo.label)
@@ -174,7 +199,7 @@ struct MenuBarView: View {
             }
         }
         .padding(Tokens.Spacing.lg)
-        .frame(width: 320)
+        .frame(width: 360)
         .background(Tokens.Colors.ground)
         .task {
             accessStatus = EventKitBridge.accessStatus()
