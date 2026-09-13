@@ -198,3 +198,22 @@ period before the existing Apple record can be imported again. Equal
 names alone are never authority to delete reminders. Google account flows,
 voice permissions and every interaction on physical hardware still require
 full end-to-end acceptance testing.
+
+### Login and bottom navigation refinement — 2026-09-07
+
+- Signed macOS and iOS device builds passed; isolated Simulator build passed.
+- Installed the Mac update and verified `SMAppService.mainApp.status` changed
+  from `.notFound` (3) to `.enabled` (1) after registration. Diagnostic log:
+  `/private/tmp/dundu-login-final.log`. No logout or restart was performed.
+- The default setup handles both missing and unregistered services. It marks
+  setup complete only after registration/approval state is established, or
+  after the user explicitly disables automatic launch.
+- Inspected sample-data screenshots for the three grouped destinations,
+  separate voice button, retained Add button, and no initial search field.
+  Light, dark and larger-text captures are in `build.noindex/DockReview/`.
+- Search still filters titles and notes, with a focused text field, Clear and
+  Cancel controls. Settings is reached from the footer of Reminders.
+- These changes do not modify the tested reminder/calendar sync code.
+- The revised iPhone build installed and launched successfully on the paired
+  phone after it was reconnected. Runtime layout inspection for this revision
+  was performed in Simulator.

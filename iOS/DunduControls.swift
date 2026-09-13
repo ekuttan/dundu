@@ -263,7 +263,8 @@ extension View {
 
 // MARK: - Navigation
 
-/// Native navigation adopts the current iOS appearance and keeps older OS support.
+/// Independent navigation stacks with three grouped destinations and a
+/// separate capture action. The voice control is an action, never a fake tab.
 struct DunduWorkspace: View {
     @Binding var selection: AppTab
     var inboxCount: Int
@@ -274,44 +275,142 @@ struct DunduWorkspace: View {
     var body: some View {
         TabView(selection: $selection) {
             NavigationStack {
-                ListsView()
-                    .modifier(CaptureToolbar(onAdd: onAdd, onRecord: onRecord, onSettings: onSettings))
+                ListsView(onSettings: onSettings)
+                    .modifier(CaptureToolbar(onAdd: onAdd))
             }
             .tabItem { Label("Reminders", systemImage: "checklist") }
             .tag(AppTab.lists)
 
             NavigationStack {
                 TodayView(inboxCount: inboxCount) { selection = .inbox }
-                    .modifier(CaptureToolbar(onAdd: onAdd, onRecord: onRecord, onSettings: onSettings))
+                    .modifier(CaptureToolbar(onAdd: onAdd))
             }
             .tabItem { Label("Today", systemImage: "calendar") }
             .tag(AppTab.today)
 
             NavigationStack {
                 InboxView()
-                    .modifier(CaptureToolbar(onAdd: onAdd, onRecord: onRecord, onSettings: onSettings))
+                    .modifier(CaptureToolbar(onAdd: onAdd))
             }
             .tabItem { Label("Inbox", systemImage: "tray") }
-            .badge(inboxCount)
             .tag(AppTab.inbox)
+        }
+        .toolbar(.hidden, for: .tabBar)
+        .overlay(alignment: .bottom) {
+            WorkspaceDock(selection: $selection, inboxCount: inboxCount, onRecord: onRecord)
+                .frame(maxWidth: 520)
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 8)
+                .frame(maxWidth: .infinity)
         }
     }
 }
 
 private struct CaptureToolbar: ViewModifier {
     let onAdd: () -> Void
-    let onRecord: () -> Void
-    let onSettings: () -> Void
 
     func body(content: Content) -> some View {
-        content.toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button("Settings", systemImage: "gearshape", action: onSettings)
+        content
+            .safeAreaInset(edge: .bottom, spacing: 0) { Color.clear.frame(height: 74) }
+            .toolbar(.hidden, for: .tabBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Add reminder", systemImage: "plus", action: onAdd)
+                }
             }
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                Button("Record", systemImage: "mic", action: onRecord)
-                Button("Add reminder", systemImage: "plus", action: onAdd)
+    }
+}
+
+private struct WorkspaceDock: View {
+    @Binding var selection: AppTab
+    let inboxCount: Int
+    let onRecord: () -> Void
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    var body: some View {
+        if #available(iOS 26, *) {
+            GlassEffectContainer(spacing: 12) { controls }
+        } else {
+            controls
+        }
+    }
+
+    private var controls: some View {
+        HStack(spacing: 12) {
+            HStack(spacing: 2) {
+                destination(.lists, title: "Reminders", icon: "checklist")
+                destination(.today, title: "Today", icon: "calendar")
+                destination(.inbox, title: "Inbox", icon: "tray")
             }
+            .padding(5)
+            .modifier(DockSurface(reduceTransparency: reduceTransparency))
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Navigation")
+
+            Button(action: onRecord) {
+                Image(systemName: "mic.fill")
+                    .font(.system(size: 21, weight: .medium))
+                    .frame(width: 58, height: 58)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(PressableStyle())
+            .foregroundStyle(Tokens.Colors.ink)
+            .modifier(DockSurface(reduceTransparency: reduceTransparency))
+            .accessibilityLabel("Record a reminder")
+            .accessibilityHint("Opens voice capture")
+        }
+    }
+
+    private func destination(_ tab: AppTab, title: String, icon: String) -> some View {
+        let selected = selection == tab
+        return Button { selection = tab } label: {
+            VStack(spacing: 3) {
+                Image(systemName: icon)
+                    .font(.system(size: 19, weight: selected ? .semibold : .regular))
+                    .frame(height: 21)
+                    .overlay(alignment: .topTrailing) {
+                        if tab == .inbox, inboxCount > 0 {
+                            Text(inboxCount > 99 ? "99+" : "\(inboxCount)")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 4)
+                                .frame(minWidth: 14, minHeight: 14)
+                                .background(.red, in: Capsule())
+                                .offset(x: 12, y: -5)
+                        }
+                    }
+                Text(title)
+                    .font(.system(size: 11, weight: .medium))
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 48)
+            .foregroundStyle(selected ? Tokens.Colors.accent : Tokens.Colors.quiet)
+            .background {
+                if selected { Capsule().fill(.primary.opacity(0.07)) }
+            }
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityValue(tab == .inbox && inboxCount > 0 ? "\(inboxCount) items to review" : "")
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
+private struct DockSurface: ViewModifier {
+    let reduceTransparency: Bool
+
+    func body(content: Content) -> some View {
+        if reduceTransparency {
+            content.background(Tokens.Colors.card, in: Capsule())
+                .overlay { Capsule().strokeBorder(.primary.opacity(0.12), lineWidth: 0.5) }
+        } else if #available(iOS 26, *) {
+            content.glassEffect(.regular, in: Capsule())
+        } else {
+            content.background(.regularMaterial, in: Capsule())
+                .overlay { Capsule().strokeBorder(.primary.opacity(0.08), lineWidth: 0.5) }
         }
     }
 }

@@ -38,6 +38,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Task { @MainActor in
+            LoginItemController.shared.configureDefault()
             let controller = NotchPanelController(container: MacStores.container)
             NotchPanel.shared = controller
             controller.start()

@@ -8,6 +8,9 @@ struct MacSettingsView: View {
     @AppStorage(MacPrefs.peeksWhilePresentingKey) private var showWhilePresenting = false
     @AppStorage(MacPrefs.peeksDuringFocusKey) private var showDuringFocus = false
 
+    @State private var loginItem = LoginItemController.shared
+    @Environment(\.scenePhase) private var scenePhase
+
     @State private var screens: [(id: Int, name: String)] = []
 
     var body: some View {
@@ -16,12 +19,34 @@ struct MacSettingsView: View {
                 Text("Settings")
                     .font(.title2.bold())
                     .foregroundStyle(Tokens.Colors.ink)
-                Text("Display and notifications")
+                Text("General, display and notifications")
                     .font(Tokens.Typo.label)
                     .foregroundStyle(Tokens.Colors.quiet)
             }
             .padding(Tokens.Spacing.xl)
             Form {
+                Section {
+                    Toggle("Open Dundu at login", isOn: Binding(
+                        get: { loginItem.isRequested },
+                        set: { loginItem.setEnabled($0) }
+                    ))
+                    if loginItem.status == .requiresApproval {
+                        Text("Allow Dundu in System Settings to finish enabling automatic launch.")
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                        Button("Open Login Items", action: loginItem.openSystemSettings)
+                    }
+                    if let error = loginItem.errorMessage {
+                        Text(error)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("General")
+                } footer: {
+                    Text("Starts quietly in the menu bar when you sign in to your Mac.")
+                }
+
                 Section("Notch display") {
                     Picker("Show the panel on", selection: $notchDisplayID) {
                         Text("Automatic (built-in first)").tag(0)
@@ -52,7 +77,13 @@ struct MacSettingsView: View {
         .background(Tokens.Colors.ground)
         .frame(width: 480)
         .fixedSize()
-        .onAppear(perform: reloadScreens)
+        .onAppear {
+            reloadScreens()
+            loginItem.refresh()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { loginItem.refresh() }
+        }
     }
 
     private func reloadScreens() {

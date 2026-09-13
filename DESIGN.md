@@ -66,3 +66,23 @@ existing implementations. Changes are limited to presentation and navigation.
 Simulator app with memory-only sample data. It omits background sync and connected
 accounts. See its README for capture commands. Preview images are generated under
 `build.noindex/DesignReview`.
+
+### Navigation refinement — September 2026
+
+| Before | After | Why |
+| --- | --- | --- |
+| Settings and microphone beside the top Add button | Add stays above; Settings moves to the end of Reminders | Keeps the header focused on the primary action. |
+| Full-width system tab bar | Three grouped destinations with a separate microphone control | Keeps navigation together and voice capture within thumb reach. |
+| Search field visible on arrival | Search button at the end of Reminders reveals and focuses the field | Gives the reminder content the first screen. |
+| No login-item control on Mac | Native “Open Dundu at login” setting | Makes automatic startup visible and reversible. |
+
+The dock uses [Apple's Liquid Glass material](https://developer.apple.com/documentation/swiftui/applying-liquid-glass-to-custom-views)
+on iOS 26, a system material on older versions, and an opaque surface when
+Reduce Transparency is enabled. The three navigation stacks retain their
+state; voice capture is a separate action. Controls retain 44-point minimum
+hit areas and VoiceOver names, selected states, and the Inbox count.
+
+Mac startup uses [SMAppService.mainApp](https://developer.apple.com/documentation/servicemanagement/smappservice/mainapp).
+The first setup requests registration once; subsequent launches respect
+changes made in Dundu or System Settings. When macOS requires approval, the
+settings view shows that state and links to Login Items.

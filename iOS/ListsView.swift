@@ -4,6 +4,7 @@ import DunduKit
 
 /// Reminders grouped by list, with filters, visible completion, and native swipe actions.
 struct ListsView: View {
+    var onSettings: () -> Void = {}
     @Environment(\.modelContext) private var context
 
     @Query(
@@ -16,6 +17,8 @@ struct ListsView: View {
     ) private var reminders: [ReminderItem]
 
     @State private var searchText = ""
+    @State private var isSearching = false
+    @FocusState private var searchFocused: Bool
     @State private var selectedListID: UUID?
     @State private var editingReminder: ReminderItem?
     @State private var showingNew = false
@@ -25,6 +28,9 @@ struct ListsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            if isSearching {
+                searchField
+            }
             if lists.count > 1 {
                 filterRow
             }
@@ -74,6 +80,21 @@ struct ListsView: View {
                 if !completed.isEmpty {
                     completedSection
                 }
+
+                Section {
+                    HStack {
+                        Button("Search", systemImage: "magnifyingglass") { isSearching = true }
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                        Divider().frame(height: 18)
+                        Button("Settings", systemImage: "gearshape", action: onSettings)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .buttonStyle(.plain)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                }
             }
             .listStyle(.insetGrouped)
             .scrollContentBackground(.hidden)
@@ -82,11 +103,39 @@ struct ListsView: View {
         }
         .background(Tokens.Colors.ground)
         .navigationTitle("Reminders")
-        .searchable(text: $searchText, prompt: "Search titles and notes")
+        .onChange(of: isSearching) { _, searching in
+            searchFocused = searching
+            if !searching { searchText = "" }
+        }
         .sheet(item: $editingReminder) { ReminderEditView(existing: $0) }
         .sheet(isPresented: $showingNew) {
             ReminderEditView(existing: nil, preferredListID: selectedListID)
         }
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                TextField("Search titles and notes", text: $searchText)
+                    .focused($searchFocused)
+                    .submitLabel(.search)
+                    .autocorrectionDisabled()
+                if !searchText.isEmpty {
+                    Button("Clear search", systemImage: "xmark.circle.fill") { searchText = "" }
+                        .labelStyle(.iconOnly)
+                        .foregroundStyle(.secondary)
+                        .frame(minWidth: 44, minHeight: 44)
+                }
+            }
+            .padding(.leading, 12)
+            .frame(minHeight: 44)
+            .background(Color(uiColor: .tertiarySystemFill), in: RoundedRectangle(cornerRadius: 12))
+            Button("Cancel") { isSearching = false }
+                .frame(minHeight: 44)
+        }
+        .padding(.horizontal, Tokens.Layout.gutter)
+        .padding(.bottom, Tokens.Spacing.md)
     }
 
     // MARK: - Filter

@@ -2,10 +2,8 @@ import SwiftUI
 import SwiftData
 import DunduKit
 
-/// The three places you go. Settings is not one of them — it is a thing you
-/// visit occasionally to change something, not a destination you switch
-/// between, so it opens as a sheet from the Reminders header instead of
-/// spending a quarter of the bar.
+/// The three places you go. Settings opens from the bottom of
+/// Reminders, keeping the destination controls focused on daily use.
 enum AppTab: Hashable {
     case today, lists, inbox
 }
@@ -16,7 +14,7 @@ struct RootView: View {
     @AppStorage("hasOnboarded") private var hasOnboarded = false
     @State private var showOnboarding = false
     @State private var showingQuickAdd = false
-    /// Capture actions are available in each destination’s native toolbar.
+    /// Add stays in the toolbar; voice capture sits beside the bottom navigation.
     @State private var showingVoiceCapture = false
     @State private var showingSettings = false
     /// Reminders opens first: it is the list you came to check, and Today is
