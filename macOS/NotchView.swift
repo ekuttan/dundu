@@ -14,6 +14,13 @@ struct NotchView: View {
     let onQuickAddFocus: (Bool) -> Void
     let onOpenSettings: () -> Void
 
+    /// The expanded panel has two pages now. Reminders stays the default:
+    /// the agent dashboard is something you go and look at, not something
+    /// that should displace what is due.
+    enum Page: Hashable { case reminders, agents }
+
+    @State private var page: Page = .reminders
+    @State private var agents = AgentActivityModel()
     @State private var quickAddTitle = ""
     @State private var showQuickAdd = false
     @FocusState private var quickAddFocused: Bool
@@ -83,6 +90,12 @@ struct NotchView: View {
 
     // MARK: - Expanded
 
+    private func headerTitle(due: [NotchItem], upcoming: [NotchItem]) -> String {
+        if page == .agents { return "Coding activity" }
+        if !due.isEmpty { return "Due now" }
+        return upcoming.isEmpty ? "All clear" : "Next up"
+    }
+
     private var expandedPanel: some View {
         // Due rows take priority; upcoming fills whatever space remains.
         let due = Array(model.items.prefix(4))
@@ -92,10 +105,25 @@ struct NotchView: View {
             Color.clear.frame(height: geometry.notchRect.height)
 
             HStack {
-                Text(due.isEmpty ? (upcoming.isEmpty ? "All clear" : "Next up") : "Due now")
+                Text(headerTitle(due: due, upcoming: upcoming))
                     .font(.caption.bold())
                     .foregroundStyle(.secondary)
                 Spacer()
+                // Only offered once there is something to switch to, so a Mac
+                // with no coding tools never sees a dead control.
+                if agents.hasAnything {
+                    Button {
+                        withAnimation(animation) {
+                            page = page == .reminders ? .agents : .reminders
+                        }
+                        if page == .agents { agents.refresh() }
+                    } label: {
+                        Image(systemName: page == .agents ? "checklist" : "chart.bar.xaxis")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help(page == .agents ? "Back to reminders" : "Coding activity")
+                }
                 if model.inboxCount > 0 {
                     // The Inbox surface on the Mac: a dot, not a modal.
                     HStack(spacing: Tokens.Spacing.xs) {
@@ -129,6 +157,9 @@ struct NotchView: View {
             }
             .padding(.horizontal, Tokens.Spacing.lg)
 
+            if page == .agents {
+                AgentsView(model: agents)
+            } else {
             if showQuickAdd {
                 TextField("Quick add…", text: $quickAddTitle)
                     .textFieldStyle(.roundedBorder)
@@ -178,6 +209,7 @@ struct NotchView: View {
                 )
                 .padding(.horizontal, Tokens.Spacing.md)
             }
+            }
 
             Spacer(minLength: Tokens.Spacing.md)
         }
@@ -192,6 +224,7 @@ struct NotchView: View {
         )
         .environment(\.colorScheme, .dark)
         .transition(appearTransition)
+        .task { agents.refresh() }
     }
 }
 
