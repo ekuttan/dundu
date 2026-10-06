@@ -4,6 +4,10 @@ import DunduKit
 
 /// The SwiftUI face of the notch panel. Renders whichever state the model is
 /// in; the AppKit controller owns geometry, hover, and hit testing.
+///
+/// Expanded, it is a dark HUD with a floating dock: the panel is the surface
+/// you read and the dock is the surface you aim at, and keeping them as two
+/// shapes means switching pages never moves the controls.
 struct NotchView: View {
     let model: NotchModel
     let geometry: NotchGeometry
@@ -13,17 +17,11 @@ struct NotchView: View {
     let onQuickAdd: (String) -> Void
     let onQuickAddFocus: (Bool) -> Void
     let onOpenSettings: () -> Void
+    let onResolveInbox: (NotchItem, Bool) -> Void
 
-    /// The expanded panel has two pages now. Reminders stays the default:
-    /// the agent dashboard is something you go and look at, not something
-    /// that should displace what is due.
-    enum Page: Hashable { case reminders, agents }
-
-    @State private var page: Page = .reminders
     @State private var agents = AgentActivityModel()
-    @State private var quickAddTitle = ""
-    @State private var showQuickAdd = false
-    @FocusState private var quickAddFocused: Bool
+    private let focus = FocusModel.shared
+    var watcher = AgentSessionWatcher.shared
 
     private var animation: Animation {
         model.reduceMotion ? Tokens.Anim.reduceMotionFallback : Tokens.Anim.notchSpring
@@ -50,181 +48,125 @@ struct NotchView: View {
                 peekPill
 
             case .expanded:
-                expandedPanel
+                expanded
             }
             Spacer(minLength: 0)
         }
         .frame(width: NotchGeometry.expandedSize.width, alignment: .top)
         .animation(animation, value: model.uiState)
+        .environment(\.colorScheme, .dark)
     }
 
     // MARK: - Peek
 
+    /// What drops out of the notch unprompted. One line, one urgency, no
+    /// controls: it has to be readable without being aimed at.
     private var peekPill: some View {
-        HStack(spacing: Tokens.Spacing.sm) {
+        HStack(spacing: 7) {
             Circle()
-                .fill(Tokens.Colors.overdue)
+                .fill(peekTint)
                 .frame(width: 6, height: 6)
             Text("\(model.activeCount)")
-                .font(.caption.bold().monospacedDigit())
+                .font(.system(size: 11, weight: .bold).monospacedDigit())
+                .foregroundStyle(NP.C.text)
             Text(model.peekTitle)
-                .font(.caption)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(NP.C.dim)
                 .lineLimit(1)
                 .truncationMode(.tail)
         }
-        .foregroundStyle(.white)
-        .padding(.horizontal, Tokens.Spacing.md)
+        .padding(.horizontal, 12)
         .frame(
-            width: min(geometry.notchRect.width + 24, NotchGeometry.expandedSize.width),
-            height: geometry.notchRect.height + NotchGeometry.peekDrop - geometry.notchRect.height
+            width: min(geometry.notchRect.width + 60, NotchGeometry.expandedSize.width),
+            height: geometry.notchRect.height + NotchGeometry.peekDrop,
+            alignment: .bottom
         )
-        .frame(height: geometry.notchRect.height + NotchGeometry.peekDrop, alignment: .bottom)
+        .padding(.bottom, 7)
         .background(
-            UnevenRoundedRectangle(
-                bottomLeadingRadius: 12, bottomTrailingRadius: 12
-            )
-            .fill(.black)
+            UnevenRoundedRectangle(bottomLeadingRadius: 16, bottomTrailingRadius: 16)
+                .fill(.black)
         )
         .transition(appearTransition)
+    }
+
+    private var peekTint: Color {
+        if watcher.sessions.contains(where: { $0.state == .waiting }) { return NP.C.warn }
+        return model.items.contains(where: \.isOverdue) ? NP.C.bad : NP.C.info
     }
 
     // MARK: - Expanded
 
-    private func headerTitle(due: [NotchItem], upcoming: [NotchItem]) -> String {
-        if page == .agents { return "Coding activity" }
-        if !due.isEmpty { return "Due now" }
-        return upcoming.isEmpty ? "All clear" : "Next up"
-    }
-
-    private var expandedPanel: some View {
-        // Due rows take priority; upcoming fills whatever space remains.
-        let due = Array(model.items.prefix(4))
-        let upcoming = Array(model.upcoming.prefix(5 - due.count))
-
-        return VStack(alignment: .leading, spacing: Tokens.Spacing.sm) {
-            Color.clear.frame(height: geometry.notchRect.height)
-
-            HStack {
-                Text(headerTitle(due: due, upcoming: upcoming))
-                    .font(.caption.bold())
-                    .foregroundStyle(.secondary)
-                Spacer()
-                // Only offered once there is something to switch to, so a Mac
-                // with no coding tools never sees a dead control.
-                if agents.hasAnything {
-                    Button {
-                        withAnimation(animation) {
-                            page = page == .reminders ? .agents : .reminders
-                        }
-                        if page == .agents { agents.refresh() }
-                    } label: {
-                        Image(systemName: page == .agents ? "checklist" : "chart.bar.xaxis")
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help(page == .agents ? "Back to reminders" : "Coding activity")
-                }
-                if model.inboxCount > 0 {
-                    // The Inbox surface on the Mac: a dot, not a modal.
-                    HStack(spacing: Tokens.Spacing.xs) {
-                        Circle()
-                            .fill(Tokens.Colors.dueSoon)
-                            .frame(width: 6, height: 6)
-                        Text("\(model.inboxCount)")
-                            .font(.caption2.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                Button {
-                    withAnimation(animation) { showQuickAdd.toggle() }
-                    if showQuickAdd {
-                        quickAddFocused = true
-                    } else {
-                        onQuickAddFocus(false)
-                    }
-                } label: {
-                    Image(systemName: showQuickAdd ? "xmark.circle" : "plus.circle")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .help("Quick add a reminder")
-                Button(action: onOpenSettings) {
-                    Image(systemName: "gearshape")
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-                .help("Open Dundu settings")
+    private var expanded: some View {
+        VStack(spacing: NotchDock.gap) {
+            VStack(alignment: .leading, spacing: 0) {
+                // The physical notch eats this strip; nothing may be drawn
+                // under it.
+                Color.clear.frame(height: geometry.notchRect.height)
+                page
+                    .padding(.horizontal, NP.gutter)
+                    .padding(.top, 14)
+                    .padding(.bottom, NP.gutter)
             }
-            .padding(.horizontal, Tokens.Spacing.lg)
-
-            if page == .agents {
-                AgentsView(model: agents)
-            } else {
-            if showQuickAdd {
-                TextField("Quick add…", text: $quickAddTitle)
-                    .textFieldStyle(.roundedBorder)
-                    .focused($quickAddFocused)
-                    .onSubmit {
-                        onQuickAdd(quickAddTitle)
-                        quickAddTitle = ""
-                        showQuickAdd = false
-                        onQuickAddFocus(false)
-                    }
-                    .onExitCommand {
-                        quickAddTitle = ""
-                        showQuickAdd = false
-                        onQuickAddFocus(false)
-                    }
-                    .onChange(of: quickAddFocused) { _, focused in
-                        onQuickAddFocus(focused)
-                    }
-                    .padding(.horizontal, Tokens.Spacing.lg)
-            }
-
-            ForEach(due) { item in
-                NotchRow(
-                    item: item,
-                    isPendingUndo: model.pendingUndo.contains(item.id),
-                    onComplete: onComplete,
-                    onUndo: onUndo,
-                    onSnooze: onSnooze
+            .frame(
+                width: NotchGeometry.expandedSize.width,
+                height: model.panelHeight + geometry.notchRect.height,
+                alignment: .top
+            )
+            .background(
+                UnevenRoundedRectangle(
+                    bottomLeadingRadius: NP.R.panel, bottomTrailingRadius: NP.R.panel
                 )
-                .padding(.horizontal, Tokens.Spacing.md)
-            }
+                .fill(NP.C.panel)
+            )
 
-            if !due.isEmpty && !upcoming.isEmpty {
-                Text("Next up")
-                    .font(.caption.bold())
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, Tokens.Spacing.lg)
-            }
-
-            ForEach(upcoming) { item in
-                NotchRow(
-                    item: item,
-                    isPendingUndo: model.pendingUndo.contains(item.id),
-                    onComplete: onComplete,
-                    onUndo: onUndo,
-                    onSnooze: onSnooze
-                )
-                .padding(.horizontal, Tokens.Spacing.md)
-            }
-            }
-
-            Spacer(minLength: Tokens.Spacing.md)
+            NotchDock(
+                page: Binding(
+                    get: { model.page },
+                    set: { next in withAnimation(Tokens.Anim.content) { model.page = next } }
+                ),
+                badges: badges,
+                isPinned: model.isPinned,
+                onPin: { model.isPinned.toggle() },
+                onSettings: onOpenSettings
+            )
         }
-        .frame(
-            width: NotchGeometry.expandedSize.width,
-            height: NotchGeometry.expandedSize.height + geometry.notchRect.height,
-            alignment: .top
-        )
-        .background(
-            UnevenRoundedRectangle(bottomLeadingRadius: 20, bottomTrailingRadius: 20)
-                .fill(.black)
-        )
-        .environment(\.colorScheme, .dark)
         .transition(appearTransition)
         .task { agents.refresh() }
+    }
+
+    private var badges: [NotchPage: Int] {
+        [
+            .tasks: model.overdueCount,
+            .inbox: model.inboxCount,
+            .coding: watcher.sessions.filter { $0.state == .waiting }.count,
+        ]
+    }
+
+    @ViewBuilder
+    private var page: some View {
+        switch model.page {
+        case .dashboard:
+            DashboardPage(model: model, agents: agents, focus: focus) { destination in
+                withAnimation(Tokens.Anim.content) { model.page = destination }
+            }
+        case .tasks:
+            TasksPage(
+                model: model,
+                onComplete: onComplete,
+                onUndo: onUndo,
+                onSnooze: onSnooze,
+                onQuickAdd: onQuickAdd,
+                onQuickAddFocus: onQuickAddFocus
+            )
+        case .calendar:
+            CalendarPage(model: model)
+        case .coding:
+            CodingPage(model: agents)
+        case .focus:
+            FocusPage(focus: focus)
+        case .inbox:
+            InboxPage(model: model, onResolve: onResolveInbox)
+        }
     }
 }
 
@@ -250,78 +192,5 @@ enum SnoozeOption: String, CaseIterable, Identifiable {
             let tomorrow = calendar.date(byAdding: .day, value: 1, to: now) ?? now
             return calendar.date(bySettingHour: 9, minute: 0, second: 0, of: tomorrow) ?? tomorrow
         }
-    }
-}
-
-private struct NotchRow: View {
-    let item: NotchItem
-    let isPendingUndo: Bool
-    let onComplete: (NotchItem) -> Void
-    let onUndo: (NotchItem) -> Void
-    let onSnooze: (NotchItem, SnoozeOption) -> Void
-
-    var body: some View {
-        HStack(spacing: Tokens.Spacing.sm) {
-            if item.isMeeting {
-                Image(systemName: "video")
-                    .foregroundStyle(Tokens.Colors.meeting)
-            } else {
-                Button {
-                    isPendingUndo ? onUndo(item) : onComplete(item)
-                } label: {
-                    Image(systemName: isPendingUndo ? "checkmark.circle.fill" : "circle")
-                        .foregroundStyle(isPendingUndo ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
-                }
-                .buttonStyle(.plain)
-            }
-
-            Text(item.title)
-                .font(.callout)
-                .strikethrough(isPendingUndo)
-                .foregroundStyle(isPendingUndo ? .secondary : .primary)
-                .lineLimit(1)
-
-            Spacer()
-
-            if isPendingUndo {
-                Button("Undo") { onUndo(item) }
-                    .buttonStyle(.plain)
-                    .font(.caption.bold())
-                    .foregroundStyle(.tint)
-            } else {
-                if let due = item.dueDate {
-                    Text(Formatters.relativeTime(to: due))
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(item.isOverdue ? Tokens.Colors.overdue : .secondary)
-                }
-
-                if item.isMeeting {
-                    // Probably the single most used control in the app.
-                    if let url = item.joinURL {
-                        Button("Join") {
-                            NSWorkspace.shared.open(url)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                        .tint(Tokens.Colors.meeting)
-                    }
-                } else {
-                    Menu {
-                        ForEach(SnoozeOption.allCases) { option in
-                            Button(option.rawValue) { onSnooze(item, option) }
-                        }
-                    } label: {
-                        Image(systemName: "zzz")
-                            .foregroundStyle(.secondary)
-                    }
-                    .menuStyle(.borderlessButton)
-                    .fixedSize()
-                }
-            }
-        }
-        .padding(.horizontal, Tokens.Spacing.sm)
-        .padding(.vertical, Tokens.Spacing.xs)
-        .background(Color.white.opacity(0.065), in: RoundedRectangle(cornerRadius: 8))
-        .animation(.easeOut(duration: 0.15), value: isPendingUndo)
     }
 }

@@ -60,6 +60,17 @@ final class NotchPanelController {
         scheduler.onFire = { [weak self] in self?.fireArrived() }
         PeekSuppression.requestFocusAuthorizationIfNeeded()
         refresh()
+
+        // Demo mode fills the model with fixtures and opens the panel, so the
+        // layout can be looked at without a cursor in the notch.
+        if ProcessInfo.processInfo.environment["DUNDU_NOTCH_DEMO"] == "1" {
+            if let name = ProcessInfo.processInfo.environment["DUNDU_NOTCH_PAGE"],
+               let page = NotchPage(rawValue: name) {
+                model.page = page
+            }
+            model.isPinned = true
+            model.uiState = .expanded
+        }
     }
 
     /// Spec §7: before the notch shows a meeting peek, sync if the last
@@ -112,13 +123,16 @@ final class NotchPanelController {
             onSnooze: { [weak self] item, option in self?.snooze(item, option: option) },
             onQuickAdd: { [weak self] title in self?.addQuickReminder(title) },
             onQuickAddFocus: { [weak self] active in self?.setQuickAddActive(active) },
-            onOpenSettings: { Self.openSettings() }
+            onOpenSettings: { Self.openSettings() },
+            onResolveInbox: { [weak self] item, keep in self?.resolveInbox(item, keep: keep) }
         )
 
         let hosting = PassthroughHostingView(rootView: view)
         hosting.screenRectProvider = { [weak self] in
             guard let self, let geometry = self.geometry else { return .zero }
-            return geometry.hoverRect(for: self.model.uiState)
+            return geometry.hoverRect(
+                for: self.model.uiState, pageHeight: self.model.panelHeight
+            )
         }
         hosting.onHoverChange = { [weak self] hovering in
             self?.hoverChanged(hovering)
@@ -191,7 +205,7 @@ final class NotchPanelController {
             model.uiState = .peek
         case .peek where !model.hasContent || suppressed:
             model.uiState = .hidden
-        case .expanded where !model.hasContent && undoTimers.isEmpty && !isHovering:
+        case .expanded where !model.hasContent && undoTimers.isEmpty && !isHovering && !model.isPinned:
             model.uiState = .hidden
         default:
             break
@@ -232,7 +246,9 @@ final class NotchPanelController {
         } else {
             expandTimer?.invalidate()
             expandTimer = nil
-            guard model.uiState == .expanded, collapseTimer == nil else { return }
+            // A pinned panel stays put: the user asked for it to be there,
+            // and nothing about the mouse leaving contradicts that.
+            guard model.uiState == .expanded, collapseTimer == nil, !model.isPinned else { return }
             collapseTimer = Timer.scheduledTimer(withTimeInterval: Self.collapseDelay, repeats: false) { _ in
                 Task { @MainActor in
                     guard let self = NotchPanel.shared else { return }
@@ -318,6 +334,7 @@ final class NotchPanelController {
 
     /// Drops straight back to hidden, cancelling any pending hover timers.
     func collapse() {
+        model.isPinned = false
         expandTimer?.invalidate()
         expandTimer = nil
         collapseTimer?.invalidate()
@@ -325,6 +342,22 @@ final class NotchPanelController {
         isHovering = false
         acknowledgeVisibleDueItems()
         model.uiState = .hidden
+    }
+
+    /// Inbox triage. Keeping a capture resolves the question and leaves the
+    /// item where it is; discarding tombstones it, which is what the sync
+    /// planner needs in order to remove it from Apple Reminders too.
+    private func resolveInbox(_ item: NotchItem, keep: Bool) {
+        let context = ModelContext(container)
+        if let target = try? context.fetch(FetchDescriptor<ReminderItem>())
+            .first(where: { $0.id == item.id }) {
+            target.reviewState = keep ? .resolved : .dismissed
+            if !keep { target.tombstonedAt = Date() }
+            target.modifiedAt = Date()
+            try? context.save()
+            Task { await ReminderSyncService.syncNow(context: ModelContext(container)) }
+        }
+        refresh()
     }
 
     private func snooze(_ item: NotchItem, option: SnoozeOption) {

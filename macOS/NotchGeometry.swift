@@ -7,10 +7,15 @@ struct NotchGeometry: Equatable {
     var hasHardwareNotch: Bool
     var screenFrame: CGRect
 
-    /// Panel width when expanded, per spec ~380x220.
-    static let expandedSize = CGSize(width: 380, height: 220)
-    /// Peek pill drops about 12pt below the notch.
-    static let peekDrop: CGFloat = 26
+    /// The expanded panel. Big enough for a six-card grid and a year-long
+    /// heatmap at a readable cell size; anything smaller and the panel is a
+    /// menu with ambitions rather than a dashboard.
+    static let expandedSize = CGSize(width: 760, height: 420)
+    /// The dock hangs below the panel in its own shape, so the window has to
+    /// reserve room for it even though it is not part of the panel.
+    static let dockBlock: CGFloat = 56
+    /// Peek pill drops about 30pt below the notch.
+    static let peekDrop: CGFloat = 30
     /// How far below the notch stays hoverable while hidden. The spec says
     /// 4pt; that is unhittably thin in practice, so the strip is deeper
     /// while still far from anything else clickable.
@@ -56,7 +61,7 @@ struct NotchGeometry: Equatable {
     /// restricted to the state's visible region.
     var panelFrame: CGRect {
         let width = Self.expandedSize.width
-        let height = Self.expandedSize.height + notchRect.height
+        let height = Self.expandedSize.height + notchRect.height + Self.dockBlock
         return CGRect(
             x: notchRect.midX - width / 2,
             y: notchRect.maxY - height,
@@ -73,7 +78,7 @@ struct NotchGeometry: Equatable {
     /// an implementation detail, and getting it backwards puts the hover
     /// strip 250pt below the notch, which is exactly what "reacts randomly
     /// while dragging a window, dead at the notch" looks like.
-    func hoverRect(for state: NotchUIState) -> CGRect {
+    func hoverRect(for state: NotchUIState, pageHeight: CGFloat? = nil) -> CGRect {
         switch state {
         case .hidden:
             // The notch plus a strip just under it. The cursor can't rest
@@ -93,7 +98,15 @@ struct NotchGeometry: Equatable {
                 height: notchRect.height + Self.peekDrop
             )
         case .expanded:
-            return panelFrame
+            // Only as far down as the panel actually reaches on this page,
+            // or a short page leaves a band of invisible hot area below the
+            // dock that keeps the panel open.
+            guard let pageHeight, pageHeight < Self.expandedSize.height else { return panelFrame }
+            let frame = panelFrame
+            let used = notchRect.height + pageHeight + Self.dockBlock
+            return CGRect(
+                x: frame.minX, y: frame.maxY - used, width: frame.width, height: used
+            )
         }
     }
 }

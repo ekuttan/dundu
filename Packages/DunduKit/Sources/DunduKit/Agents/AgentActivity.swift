@@ -87,7 +87,7 @@ public struct AgentSummary: Sendable, Equatable {
     public var messages: Int
     public var topModel: String?
     public var lastActive: Date?
-    /// yyyy-MM-dd to messages on that day — the heatmap's source.
+    /// yyyy-MM-dd to sessions active on that day — the heatmap's source.
     public var dayCounts: [String: Int]
     public var currentStreak: Int
     public var longestStreak: Int

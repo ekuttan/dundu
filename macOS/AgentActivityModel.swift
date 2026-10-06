@@ -10,9 +10,9 @@ import DunduKit
 @MainActor
 final class AgentActivityModel {
     private(set) var summaries: [AgentTool: AgentSummary] = [:]
-    private(set) var available: [AgentTool] = []
+    var available: [AgentTool] = []
     private(set) var isScanning = false
-    private(set) var lastScan: Date?
+    var lastScan: Date?
     /// Rough progress for the first run, when there is nothing to show yet.
     private(set) var progress: Double?
 
@@ -35,6 +35,17 @@ final class AgentActivityModel {
     func connect(_ tool: AgentTool) {
         guard AgentFolderAccess.requestAccess(for: tool) != nil else { return }
         selected = tool
+        refresh(force: true)
+    }
+
+    /// Hands the folder grant back. The summary goes with it: leaving the
+    /// numbers on screen after disconnecting would suggest Dundu is still
+    /// reading, which is the one thing a disconnect has to disprove.
+    func disconnect(_ tool: AgentTool) {
+        AgentFolderAccess.forget(tool)
+        summaries[tool] = nil
+        available.removeAll { $0 == tool }
+        lastScan = nil
         refresh(force: true)
     }
 
