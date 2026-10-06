@@ -217,3 +217,32 @@ full end-to-end acceptance testing.
 - The revised iPhone build installed and launched successfully on the paired
   phone after it was reconnected. Runtime layout inspection for this revision
   was performed in Simulator.
+
+## 9. Coding activity and live agent sessions (Mac)
+
+Two setup steps, both one-time.
+
+**Grant the folder.** Notch → chart icon → Connect Claude Code → choose
+`~/.claude` (the picker opens there with hidden files shown). Same for
+`~/.codex`. Dundu is sandboxed, so without this it genuinely cannot see them.
+
+**Install the hooks**, for the live list and done alerts:
+
+```bash
+Tools/agent-hooks/install.sh
+```
+
+It merges into `~/.claude/settings.json`, backs the file up first, leaves any
+other tool's hooks alone, and is safe to run twice. Undo with `--remove`.
+Restart any running Claude Code session afterwards.
+
+- [ ] Dashboard: tokens, sessions, tool calls, streak, a year heatmap, top
+      model and last-active, switchable between Claude Code and Codex.
+- [ ] First scan takes ~30s on a large corpus and shows a progress bar; every
+      later open is instant. Only the session being written is re-read.
+- [ ] Live list: start a Claude Code task → it appears as "working". A
+      permission prompt flips it to "needs you" and sorts it to the top.
+- [ ] Done alert: finish a task → a notification naming the project and what
+      was asked. Finishing again does not re-alert for the same state.
+- [ ] Close the lid mid-task: the stranded "working" row ages out after two
+      hours rather than sitting there forever.

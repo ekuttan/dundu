@@ -5,11 +5,20 @@ import DunduKit
 /// run is, and a year of days behind it.
 struct AgentsView: View {
     @Bindable var model: AgentActivityModel
+    var watcher = AgentSessionWatcher.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: Tokens.Spacing.sm) {
             if model.available.count > 1 {
                 toolPicker
+            }
+
+            // What is happening right now sits above what has happened
+            // historically: a session waiting on you is the only thing on
+            // this page that is actually asking for something.
+            if !watcher.sessions.isEmpty {
+                liveSessions
+                Divider().opacity(0.25)
             }
 
             if let summary = model.summary {
@@ -52,6 +61,46 @@ struct AgentsView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var liveSessions: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            ForEach(watcher.sessions.prefix(3)) { session in
+                HStack(spacing: Tokens.Spacing.sm) {
+                    Circle()
+                        .fill(Self.stateColor(session.state))
+                        .frame(width: 6, height: 6)
+                    Text(session.task ?? session.projectName ?? "Session")
+                        .font(.caption)
+                        .lineLimit(1)
+                    Spacer(minLength: Tokens.Spacing.xs)
+                    Text(Self.stateLabel(session.state))
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if watcher.sessions.count > 3 {
+                Text("+\(watcher.sessions.count - 3) more")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+    }
+
+    static func stateColor(_ state: AgentSessionState) -> Color {
+        switch state {
+        case .waiting: Tokens.Colors.dueSoon
+        case .working: Tokens.Colors.accent
+        case .done: Tokens.Colors.hueDone
+        }
+    }
+
+    static func stateLabel(_ state: AgentSessionState) -> String {
+        switch state {
+        case .waiting: "needs you"
+        case .working: "working"
+        case .done: "done"
+        }
     }
 
     private var connectRow: some View {

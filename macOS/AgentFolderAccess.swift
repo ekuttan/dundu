@@ -20,11 +20,19 @@ enum AgentFolderAccess {
         return FileManager.default.homeDirectoryForCurrentUser
     }
 
+    /// The folder the user is asked for. `~/.claude` rather than
+    /// `~/.claude/projects`, because the live session files the hooks write
+    /// sit beside `projects`, and one grant should cover both.
     static func defaultPath(for tool: AgentTool) -> URL {
         switch tool {
-        case .claudeCode: realHome.appending(path: ".claude/projects")
-        case .codex: realHome.appending(path: ".codex/sessions")
+        case .claudeCode: realHome.appending(path: ".claude")
+        case .codex: realHome.appending(path: ".codex")
         }
+    }
+
+    /// Where the hooks drop live session files, inside the granted folder.
+    static func liveSessionsDirectory() -> URL? {
+        grantedURL(for: .claudeCode).map { $0.appending(path: "dundu/sessions") }
     }
 
     private static func key(for tool: AgentTool) -> String {

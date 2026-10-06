@@ -58,10 +58,7 @@ public actor AgentActivityReader {
     /// Whether either tool has anything on this Mac, so the UI can stay out
     /// of the way entirely rather than showing four empty dials.
     public func availableTools() -> [AgentTool] {
-        AgentTool.allCases.filter { tool in
-            guard let root = roots[tool] else { return false }
-            return FileManager.default.fileExists(atPath: root.path)
-        }
+        AgentTool.allCases.filter { transcriptRoot($0) != nil }
     }
 
     public func summaries(
@@ -101,8 +98,19 @@ public actor AgentActivityReader {
         let project: String?
     }
 
+    /// The user may grant `~/.claude` or `~/.claude/projects`; both should
+    /// work, so the conventional subfolder is used when it is there.
+    private func transcriptRoot(_ tool: AgentTool) -> URL? {
+        guard let root = roots[tool] else { return nil }
+        let conventional = switch tool {
+        case .claudeCode: root.appending(path: "projects")
+        case .codex: root.appending(path: "sessions")
+        }
+        return FileManager.default.fileExists(atPath: conventional.path) ? conventional : root
+    }
+
     private func transcripts(_ tool: AgentTool) -> [Transcript] {
-        guard let root = roots[tool] else { return [] }
+        guard let root = transcriptRoot(tool) else { return [] }
         guard let enumerator = FileManager.default.enumerator(
             at: root,
             includingPropertiesForKeys: [.isRegularFileKey],

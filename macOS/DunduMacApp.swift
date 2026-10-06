@@ -71,6 +71,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // prevents.
             observeWake(controller: controller)
 
+            // Coding agents report their own state through hooks; this picks
+            // the reports up and raises them.
+            AgentSessionWatcher.shared.start()
+
             // Google has no push without a webhook: poll every 5 minutes
             // while running (spec §7). Reminders ride the same tick: EKEvent
             // change notifications can be missed across sleep.
